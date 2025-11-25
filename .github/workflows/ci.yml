@@ -52,6 +52,12 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Install MongoDB extension via PECL
+        run: |
+          sudo pecl install mongodb
+          echo "extension=mongodb.so" | sudo tee -a $(php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||")
+          php -m | grep mongodb
+
       - name: Validate composer.json
         run: composer validate --strict
 
@@ -64,7 +70,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
 
       - name: Check PHP syntax errors
         run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
@@ -121,11 +127,16 @@ jobs:
       - name: Wait for services to be ready
         run: |
           echo "Waiting for PostgreSQL..."
-          timeout 60 bash -c 'until docker compose exec -T db pg_isready -U parking_user; do sleep 2; done'
+          timeout 90 bash -c 'until docker compose exec -T db pg_isready -U parking_user; do echo "Waiting for PostgreSQL..."; sleep 3; done'
+          echo "✅ PostgreSQL is ready!"
+          
           echo "Waiting for MongoDB..."
-          timeout 60 bash -c 'until docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet; do sleep 2; done'
-          echo "Waiting for web server..."
-          sleep 10
+          timeout 90 bash -c 'until docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null; do echo "Waiting for MongoDB..."; sleep 3; done'
+          echo "✅ MongoDB is ready!"
+          
+          echo "Waiting for web server to start..."
+          sleep 15
+          echo "✅ All services should be ready!"
 
       - name: Check container health
         run: |
@@ -136,33 +147,46 @@ jobs:
 
       - name: Test health endpoint
         run: |
+          echo "Testing health endpoint..."
           response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
+          echo "Health endpoint returned: $response"
           if [ "$response" != "200" ]; then
-            echo "Health check failed with status: $response"
+            echo "❌ Health check failed with status: $response"
+            echo "Web server logs:"
             docker compose logs web
             exit 1
           fi
-          echo "Health check passed!"
+          echo "✅ Health check passed!"
 
       - name: Test PostgreSQL connection
         run: |
+          echo "Testing PostgreSQL connection..."
           response=$(curl -s http://localhost/db-test)
-          echo "$response"
+          echo "Response: $response"
           if echo "$response" | grep -q '"status":"success"'; then
-            echo "PostgreSQL connection test passed!"
+            echo "✅ PostgreSQL connection test passed!"
           else
-            echo "PostgreSQL connection test failed!"
+            echo "❌ PostgreSQL connection test failed!"
+            echo "Database logs:"
+            docker compose logs db
+            echo "Web logs:"
+            docker compose logs web
             exit 1
           fi
 
       - name: Test MongoDB connection
         run: |
+          echo "Testing MongoDB connection..."
           response=$(curl -s http://localhost/mongo-test)
-          echo "$response"
+          echo "Response: $response"
           if echo "$response" | grep -q '"status":"success"'; then
-            echo "MongoDB connection test passed!"
+            echo "✅ MongoDB connection test passed!"
           else
-            echo "MongoDB connection test failed!"
+            echo "❌ MongoDB connection test failed!"
+            echo "MongoDB logs:"
+            docker compose logs mongodb
+            echo "Web logs:"
+            docker compose logs web
             exit 1
           fi
 
@@ -187,7 +211,7 @@ jobs:
           tools: composer:v2, phpstan, php-cs-fixer
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
 
       - name: Check code style (PSR-12)
         run: |
