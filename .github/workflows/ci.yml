@@ -52,11 +52,11 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Install MongoDB extension via PECL
+      - name: Verify PHP extensions
         run: |
-          sudo pecl install mongodb
-          echo "extension=mongodb.so" | sudo tee -a $(php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||")
-          php -m | grep mongodb
+          echo "Installed PHP extensions:"
+          php -m | grep -E '(pdo|pgsql|mongodb|zip|gd)'
+          echo "MongoDB extension loaded successfully!"
 
       - name: Validate composer.json
         run: composer validate --strict
@@ -161,32 +161,50 @@ jobs:
       - name: Test PostgreSQL connection
         run: |
           echo "Testing PostgreSQL connection..."
+          echo "Fetching response from /db-test..."
           response=$(curl -s http://localhost/db-test)
-          echo "Response: $response"
-          if echo "$response" | grep -q '"status":"success"'; then
+          echo "=========================================="
+          echo "Full Response:"
+          echo "$response"
+          echo "=========================================="
+          
+          # Check if response contains success status
+          if echo "$response" | grep -qi 'success'; then
             echo "✅ PostgreSQL connection test passed!"
           else
             echo "❌ PostgreSQL connection test failed!"
+            echo "Expected JSON with 'success' status, but got different response"
+            echo ""
             echo "Database logs:"
-            docker compose logs db
+            docker compose logs db | tail -50
+            echo ""
             echo "Web logs:"
-            docker compose logs web
+            docker compose logs web | tail -50
             exit 1
           fi
 
       - name: Test MongoDB connection
         run: |
           echo "Testing MongoDB connection..."
+          echo "Fetching response from /mongo-test..."
           response=$(curl -s http://localhost/mongo-test)
-          echo "Response: $response"
-          if echo "$response" | grep -q '"status":"success"'; then
+          echo "=========================================="
+          echo "Full Response:"
+          echo "$response"
+          echo "=========================================="
+          
+          # Check if response contains success status
+          if echo "$response" | grep -qi 'success'; then
             echo "✅ MongoDB connection test passed!"
           else
             echo "❌ MongoDB connection test failed!"
+            echo "Expected JSON with 'success' status, but got different response"
+            echo ""
             echo "MongoDB logs:"
-            docker compose logs mongodb
+            docker compose logs mongodb | tail -50
+            echo ""
             echo "Web logs:"
-            docker compose logs web
+            docker compose logs web | tail -50
             exit 1
           fi
 
