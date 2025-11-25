@@ -93,6 +93,43 @@ try {
         exit;
     }
 
+    // MongoDB connection test endpoint
+    if ($requestUri === '/mongo-test') {
+        header('Content-Type: application/json');
+
+        try {
+            // Load MongoDB connection
+            $mongoClient = require BASE_PATH . '/config/mongodb.php';
+
+            // Get database
+            $mongoDb = getenv('MONGO_DB') ?: 'parking_db';
+
+            // List collections
+            $command = new MongoDB\Driver\Command(['listCollections' => 1]);
+            $cursor = $mongoClient->executeCommand($mongoDb, $command);
+            $collections = $cursor->toArray();
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'MongoDB connection successful',
+                'database' => [
+                    'host' => getenv('MONGO_HOST'),
+                    'name' => $mongoDb,
+                    'collections_count' => count($collections),
+                    'collections' => array_map(fn($c) => $c->name, $collections)
+                ]
+            ]);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'MongoDB connection failed',
+                'error' => $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+
     // API routes will be handled here
     // For now, return 404 for undefined routes
     header('Content-Type: application/json');

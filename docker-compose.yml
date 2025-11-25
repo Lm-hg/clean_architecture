@@ -12,12 +12,18 @@ services:
       - .:/var/www/html
     depends_on:
       - db
+      - mongodb
     environment:
       # Variables d'environnement pour PHP/Application
       DB_HOST: db
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # MongoDB connection
+      MONGO_HOST: mongodb
+      MONGO_DB: ${MONGO_DB}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
 
   # 2. Service database (PostgreSQL)
   db:
@@ -35,5 +41,22 @@ services:
       # SQL initialization script (runs on first startup)
       - ./src/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
 
+  # 3. Service MongoDB (NoSQL for flexible data)
+  mongodb:
+    image: mongo:7.0
+    container_name: parking_app_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+    ports:
+      - "27017:27017"
+    volumes:
+      # Persistent MongoDB data
+      - mongodata:/data/db
+      # MongoDB initialization script
+      - ./src/docker/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+
 volumes:
   pgdata: # Définit le volume persistant pour les données PostgreSQL
+  mongodata: # Définit le volume persistant pour les données MongoDB

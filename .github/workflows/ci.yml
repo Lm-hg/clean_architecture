@@ -1,0 +1,294 @@
+name: CI - deploy on prod 
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  php-lint-and-test:
+    name: PHP Linting & Testing
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: parking_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: parking_db_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      mongodb:
+        image: mongo:7.0
+        env:
+          MONGO_INITDB_ROOT_USERNAME: parking_mongo
+          MONGO_INITDB_ROOT_PASSWORD: test_password
+          MONGO_INITDB_DATABASE: parking_db_test
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_pgsql, zip, gd, mongodb
+          coverage: none
+          tools: composer:v2
+
+      - name: Verify PHP extensions
+        run: |
+          echo "Installed PHP extensions:"
+          php -m | grep -E '(pdo|pgsql|mongodb|zip|gd)'
+          echo "MongoDB extension loaded successfully!"
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
+
+      - name: Check PHP syntax errors
+        run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Run PHPUnit tests
+        env:
+          DB_HOST: localhost
+          DB_NAME: parking_db_test
+          DB_USER: parking_user
+          DB_PASSWORD: test_password
+          MONGO_HOST: localhost
+          MONGO_DB: parking_db_test
+          MONGO_USER: parking_mongo
+          MONGO_PASSWORD: test_password
+        run: |
+          if [ -f "vendor/bin/phpunit" ]; then
+            vendor/bin/phpunit --testdox
+          else
+            echo "PHPUnit not configured yet, skipping tests"
+          fi
+
+  docker-build:
+    name: Docker Build Verification
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create .env file for testing
+        run: |
+          cat > .env << EOF
+          POSTGRES_USER=parking_user
+          POSTGRES_PASSWORD=test_password
+          POSTGRES_DB=parking_db_test
+          DB_HOST=db
+          DB_NAME=parking_db_test
+          DB_USER=parking_user
+          DB_PASSWORD=test_password
+          MONGO_USER=parking_mongo
+          MONGO_PASSWORD=test_password
+          MONGO_DB=parking_db_test
+          EOF
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_pgsql, zip, gd, mongodb
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
+
+      - name: Debug - List vendor directory
+        run: |
+          echo "Listing root directory:"
+          ls -la
+          echo "Listing vendor directory:"
+          ls -la vendor
+
+
+      - name: Build Docker images
+        run: docker compose build --no-cache
+
+      - name: Start Docker containers
+        run: docker compose up -d
+
+      - name: Debug - Check container files
+        run: |
+          echo "Checking /var/www/html in container:"
+          docker compose exec -T web ls -la /var/www/html
+          echo "Checking vendor in container:"
+          docker compose exec -T web ls -la /var/www/html/vendor || echo "Vendor not found in container"
+
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for PostgreSQL..."
+          timeout 90 bash -c 'until docker compose exec -T db pg_isready -U parking_user; do echo "Waiting for PostgreSQL..."; sleep 3; done'
+          echo "✅ PostgreSQL is ready!"
+          
+          echo "Waiting for MongoDB..."
+          timeout 90 bash -c 'until docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null; do echo "Waiting for MongoDB..."; sleep 3; done'
+          echo "✅ MongoDB is ready!"
+          
+          echo "Waiting for web server to start..."
+          sleep 15
+          echo "✅ All services should be ready!"
+
+      - name: Check container health
+        run: |
+          docker compose ps
+          docker compose logs web
+          docker compose logs db
+          docker compose logs mongodb
+
+      - name: Test health endpoint
+        run: |
+          echo "Testing health endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
+          echo "Health endpoint returned: $response"
+          if [ "$response" != "200" ]; then
+            echo "❌ Health check failed with status: $response"
+            echo "Web server logs:"
+            docker compose logs web
+            exit 1
+          fi
+          echo "✅ Health check passed!"
+
+      - name: Test PostgreSQL connection
+        run: |
+          echo "Testing PostgreSQL connection..."
+          echo "Fetching response from /db-test..."
+          response=$(curl -s http://localhost/db-test)
+          echo "=========================================="
+          echo "Full Response:"
+          echo "$response"
+          echo "=========================================="
+          
+          # Check if response contains success status
+          if echo "$response" | grep -qi 'success'; then
+            echo "✅ PostgreSQL connection test passed!"
+          else
+            echo "❌ PostgreSQL connection test failed!"
+            echo "Expected JSON with 'success' status, but got different response"
+            echo ""
+            echo "Database logs:"
+            docker compose logs db | tail -50
+            echo ""
+            echo "Web logs:"
+            docker compose logs web | tail -50
+            exit 1
+          fi
+
+      - name: Test MongoDB connection
+        run: |
+          echo "Testing MongoDB connection..."
+          echo "Fetching response from /mongo-test..."
+          response=$(curl -s http://localhost/mongo-test)
+          echo "=========================================="
+          echo "Full Response:"
+          echo "$response"
+          echo "=========================================="
+          
+          # Check if response contains success status
+          if echo "$response" | grep -qi 'success'; then
+            echo "✅ MongoDB connection test passed!"
+          else
+            echo "❌ MongoDB connection test failed!"
+            echo "Expected JSON with 'success' status, but got different response"
+            echo ""
+            echo "MongoDB logs:"
+            docker compose logs mongodb | tail -50
+            echo ""
+            echo "Web logs:"
+            docker compose logs web | tail -50
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_pgsql, zip, gd, mongodb
+          coverage: none
+          tools: composer:v2, phpstan, php-cs-fixer
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
+
+      - name: Check code style (PSR-12)
+        run: |
+          if [ -f ".php-cs-fixer.php" ]; then
+            php-cs-fixer fix --dry-run --diff --verbose
+          else
+            echo "PHP-CS-Fixer config not found, skipping"
+          fi
+        continue-on-error: true
+
+      - name: Run PHPStan static analysis
+        run: |
+          if [ -f "phpstan.neon" ]; then
+            phpstan analyse src --level=5
+          else
+            echo "PHPStan config not found, skipping"
+          fi
+        continue-on-error: true
+
+  security-check:
+    name: Security Vulnerability Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      - name: Check for security vulnerabilities
+        run: composer audit
+        continue-on-error: true

@@ -19,6 +19,12 @@ CREATE TYPE reservation_status AS ENUM ('pending', 'confirmed', 'cancelled', 'co
 -- Payment status
 CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
 
+-- Subscription type
+CREATE TYPE subscription_type AS ENUM ('monthly', 'weekly', 'daily', 'custom');
+
+-- Parking session status
+CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled');
+
 -- ============================================
 -- TABLES
 -- ============================================
@@ -32,6 +38,9 @@ CREATE TABLE users (
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
     role user_role NOT NULL DEFAULT 'customer',
+    -- Additional fields for parking owners
+    company_name VARCHAR(255),
+    siret VARCHAR(14),  -- French business registration number
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -53,6 +62,10 @@ CREATE TABLE parkings (
     is_available BOOLEAN NOT NULL DEFAULT true,
     total_spots INTEGER NOT NULL DEFAULT 1,
     available_spots INTEGER NOT NULL DEFAULT 1,
+    -- Opening hours stored as JSON (flexible schedule)
+    opening_hours JSONB DEFAULT '{"monday": {"open": "00:00", "close": "23:59"}, "tuesday": {"open": "00:00", "close": "23:59"}, "wednesday": {"open": "00:00", "close": "23:59"}, "thursday": {"open": "00:00", "close": "23:59"}, "friday": {"open": "00:00", "close": "23:59"}, "saturday": {"open": "00:00", "close": "23:59"}, "sunday": {"open": "00:00", "close": "23:59"}}'::jsonb,
+    -- Reference to MongoDB pricing grid document ID
+    pricing_grid_id VARCHAR(24),  -- MongoDB ObjectId
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL,
@@ -74,6 +87,8 @@ CREATE TABLE reservations (
     end_time TIMESTAMP NOT NULL,
     status reservation_status NOT NULL DEFAULT 'pending',
     total_price DECIMAL(10, 2) NOT NULL,
+    payment_status payment_status NOT NULL DEFAULT 'pending',
+    payment_date TIMESTAMP,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +122,58 @@ CREATE TABLE payments (
     CONSTRAINT uq_transaction_id UNIQUE (transaction_id)
 );
 
+-- Stationnements table (actual parking sessions)
+CREATE TABLE stationnements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    parking_id UUID NOT NULL,
+    entry_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    exit_time TIMESTAMP,
+    calculated_price DECIMAL(10, 2),
+    penalties DECIMAL(10, 2) DEFAULT 0,
+    status session_status NOT NULL DEFAULT 'active',
+    payment_status payment_status NOT NULL DEFAULT 'pending',
+    vehicle_plate VARCHAR(20),
+    -- Reference to MongoDB event log
+    event_log_id VARCHAR(24),  -- MongoDB ObjectId
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT fk_stationnement_user FOREIGN KEY (user_id) 
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_stationnement_parking FOREIGN KEY (parking_id) 
+        REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT chk_exit_after_entry CHECK (exit_time IS NULL OR exit_time > entry_time),
+    CONSTRAINT chk_calculated_price_positive CHECK (calculated_price IS NULL OR calculated_price >= 0),
+    CONSTRAINT chk_penalties_positive CHECK (penalties >= 0)
+);
+
+-- Abonnements table (subscriptions)
+CREATE TABLE abonnements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    parking_id UUID NOT NULL,
+    subscription_type subscription_type NOT NULL DEFAULT 'monthly',
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    -- Reference to MongoDB time slots document
+    time_slots_id VARCHAR(24),  -- MongoDB ObjectId
+    price DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+    
+    -- Constraints
+    CONSTRAINT fk_abonnement_user FOREIGN KEY (user_id) 
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_abonnement_parking FOREIGN KEY (parking_id) 
+        REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT chk_end_after_start_date CHECK (end_date > start_date),
+    CONSTRAINT chk_subscription_price_positive CHECK (price > 0)
+);
+
 -- ============================================
 -- INDEXES for Performance
 -- ============================================
@@ -135,6 +202,20 @@ CREATE INDEX idx_payments_reservation_id ON payments(reservation_id);
 CREATE INDEX idx_payments_status ON payments(status);
 CREATE INDEX idx_payments_transaction_id ON payments(transaction_id);
 
+-- Stationnements indexes
+CREATE INDEX idx_stationnements_user_id ON stationnements(user_id);
+CREATE INDEX idx_stationnements_parking_id ON stationnements(parking_id);
+CREATE INDEX idx_stationnements_status ON stationnements(status);
+CREATE INDEX idx_stationnements_entry_time ON stationnements(entry_time);
+CREATE INDEX idx_stationnements_vehicle_plate ON stationnements(vehicle_plate);
+
+-- Abonnements indexes
+CREATE INDEX idx_abonnements_user_id ON abonnements(user_id);
+CREATE INDEX idx_abonnements_parking_id ON abonnements(parking_id);
+CREATE INDEX idx_abonnements_is_active ON abonnements(is_active);
+CREATE INDEX idx_abonnements_dates ON abonnements(start_date, end_date);
+CREATE INDEX idx_abonnements_deleted_at ON abonnements(deleted_at);
+
 -- ============================================
 -- TRIGGERS for updated_at
 -- ============================================
@@ -159,6 +240,12 @@ CREATE TRIGGER update_reservations_updated_at BEFORE UPDATE ON reservations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_stationnements_updated_at BEFORE UPDATE ON stationnements
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_abonnements_updated_at BEFORE UPDATE ON abonnements
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
@@ -215,7 +302,8 @@ FROM users WHERE email = 'owner@parking.com';
 DO $$
 BEGIN
     RAISE NOTICE '✅ Database schema initialized successfully!';
-    RAISE NOTICE '📊 Tables created: users, parkings, reservations, payments';
+    RAISE NOTICE '📊 Tables created: users, parkings, reservations, payments, stationnements, abonnements';
     RAISE NOTICE '🔑 Indexes and constraints applied';
+    RAISE NOTICE '🔗 Hybrid architecture: PostgreSQL + MongoDB references';
     RAISE NOTICE '🌱 Seed data inserted for testing';
 END $$;

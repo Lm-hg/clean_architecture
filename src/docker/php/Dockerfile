@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y \
 # Install 'pdo' and 'pdo_pgsql' extensions
 RUN docker-php-ext-install pdo pdo_pgsql zip gd
 
+# 2.5. Install MongoDB PHP extension via PECL
+RUN pecl install mongodb \
+    && docker-php-ext-enable mongodb
+
 # 3. Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
