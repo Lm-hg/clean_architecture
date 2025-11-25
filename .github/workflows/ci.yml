@@ -118,6 +118,16 @@ jobs:
           MONGO_DB=parking_db_test
           EOF
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_pgsql, zip, gd, mongodb
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
+
       - name: Build Docker images
         run: docker compose build --no-cache
 
