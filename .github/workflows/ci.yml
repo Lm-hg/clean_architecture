@@ -128,11 +128,27 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
 
+      - name: Debug - List vendor directory
+        run: |
+          echo "Listing root directory:"
+          ls -la
+          echo "Listing vendor directory:"
+          ls -la vendor
+
+
       - name: Build Docker images
         run: docker compose build --no-cache
 
       - name: Start Docker containers
         run: docker compose up -d
+
+      - name: Debug - Check container files
+        run: |
+          echo "Checking /var/www/html in container:"
+          docker compose exec -T web ls -la /var/www/html
+          echo "Checking vendor in container:"
+          docker compose exec -T web ls -la /var/www/html/vendor || echo "Vendor not found in container"
+
 
       - name: Wait for services to be ready
         run: |
