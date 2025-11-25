@@ -9,7 +9,7 @@
             <directory>tests/unit</directory>
         </testsuite>
         <testsuite name="Functional">
-            <directory>tests/fonctional</directory>
+            <directory>tests/functional</directory>
         </testsuite>
     </testsuites>
     <source>
