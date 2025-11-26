@@ -51,6 +51,8 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
       MONGO_INITDB_DATABASE: ${MONGO_DB}
+      # Réduire la verbosité des logs (surtout pour le CI)
+      MONGO_LOG_LEVEL: 1  # 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=verbose
     ports:
       - "27017:27017"
     volumes:
@@ -58,6 +60,7 @@ services:
       - mongodata:/data/db
       # MongoDB initialization script
       - ./src/docker/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    command: ["mongod", "--quiet"]  # Mode silencieux pour réduire les logs de debug
 
 volumes:
   pgdata: # Définit le volume persistant pour les données PostgreSQL

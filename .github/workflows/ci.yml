@@ -375,103 +375,171 @@ jobs:
       - name: Wait for containers to be running
         run: |
           echo "=== Checking container status ==="
-          max_attempts=40
+          max_attempts=30
           attempt=0
+          all_running=false
           
           while [ $attempt -lt $max_attempts ]; do
             echo ""
-            echo "Attempt $((attempt+1))/$max_attempts:"
+            echo "--- Attempt $((attempt+1))/$max_attempts ---"
+            
+            # Obtenir le statut de tous les conteneurs
+            echo "Full container status:"
             docker compose ps
             
-            # Vérifier le statut de chaque conteneur (plus détaillé)
-            web_status_line=$(docker compose ps web 2>/dev/null | tail -n +3 | head -1)
-            db_status_line=$(docker compose ps db 2>/dev/null | tail -n +3 | head -1)
-            mongo_status_line=$(docker compose ps mongodb 2>/dev/null | tail -n +3 | head -1)
+            # Vérifier chaque conteneur individuellement avec une méthode plus robuste
+            web_container=$(docker ps --filter "name=parking_app_web" --format "{{.Status}}" 2>/dev/null || echo "")
+            db_container=$(docker ps --filter "name=parking_app_db" --format "{{.Status}}" 2>/dev/null || echo "")
+            mongo_container=$(docker ps --filter "name=parking_app_mongodb" --format "{{.Status}}" 2>/dev/null || echo "")
             
-            echo "Web container status: $web_status_line"
-            echo "DB container status: $db_status_line"
-            echo "Mongo container status: $mongo_status_line"
+            echo ""
+            echo "Container status check:"
+            echo "  Web:    $web_container"
+            echo "  DB:     $db_container"
+            echo "  Mongo:  $mongo_container"
             
-            # Vérifier si les conteneurs sont en cours d'exécution
-            web_running=$(echo "$web_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
-            db_running=$(echo "$db_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
-            mongo_running=$(echo "$mongo_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
+            # Vérifier si les conteneurs sont en cours d'exécution (Up)
+            web_running="no"
+            db_running="no"
+            mongo_running="no"
             
-            # Vérifier si un conteneur a échoué (Exit code non zéro)
-            web_exited=$(echo "$web_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
-            db_exited=$(echo "$db_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
-            mongo_exited=$(echo "$mongo_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
+            if echo "$web_container" | grep -q "Up"; then
+              web_running="yes"
+            fi
+            if echo "$db_container" | grep -q "Up"; then
+              db_running="yes"
+            fi
+            if echo "$mongo_container" | grep -q "Up"; then
+              mongo_running="yes"
+            fi
+            
+            echo ""
+            echo "Running status:"
+            echo "  Web:    $web_running"
+            echo "  DB:     $db_running"
+            echo "  Mongo:  $mongo_running"
+            
+            # Vérifier si un conteneur a échoué (ne pas utiliser docker ps mais docker ps -a)
+            db_exited_status=$(docker ps -a --filter "name=parking_app_db" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
+            web_exited_status=$(docker ps -a --filter "name=parking_app_web" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
+            mongo_exited_status=$(docker ps -a --filter "name=parking_app_mongodb" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
             
             # Si un conteneur a échoué, afficher ses logs et arrêter
-            if [ "$db_exited" = "yes" ]; then
-              echo "❌ DB container has exited with error! Full logs:"
+            if [ "$db_exited_status" = "yes" ]; then
+              echo ""
+              echo "❌ DB container has exited with error!"
+              echo "=== DB Container Status ==="
+              docker ps -a --filter "name=parking_app_db"
+              echo ""
+              echo "=== DB Container Logs ==="
               docker compose logs db
-              echo ""
-              echo "Checking DB container details:"
-              docker compose ps db
-              echo ""
-              echo "Trying to inspect DB container:"
-              docker compose ps -a db || docker ps -a | grep db
               exit 1
             fi
-            if [ "$web_exited" = "yes" ]; then
-              echo "❌ Web container has exited with error! Full logs:"
+            if [ "$web_exited_status" = "yes" ]; then
+              echo ""
+              echo "❌ Web container has exited with error!"
+              echo "=== Web Container Status ==="
+              docker ps -a --filter "name=parking_app_web"
+              echo ""
+              echo "=== Web Container Logs ==="
               docker compose logs web
               exit 1
             fi
-            if [ "$mongo_exited" = "yes" ]; then
-              echo "❌ Mongo container has exited with error! Full logs:"
+            if [ "$mongo_exited_status" = "yes" ]; then
+              echo ""
+              echo "❌ Mongo container has exited with error!"
+              echo "=== Mongo Container Status ==="
+              docker ps -a --filter "name=parking_app_mongodb"
+              echo ""
+              echo "=== Mongo Container Logs ==="
               docker compose logs mongodb
               exit 1
             fi
             
             # Si tous les conteneurs sont en cours d'exécution
             if [ "$web_running" = "yes" ] && [ "$db_running" = "yes" ] && [ "$mongo_running" = "yes" ]; then
+              echo ""
               echo "✅ All containers are running!"
+              all_running=true
               break
             fi
             
-            # Si un conteneur n'est pas en cours d'exécution, afficher ses logs (mais continuer)
-            if [ "$db_running" = "no" ] && [ "$db_exited" = "no" ]; then
-              echo "⚠️ DB container not running yet. Recent logs:"
-              docker compose logs db 2>/dev/null | tail -15 || echo "Cannot get DB logs"
+            # Afficher les logs des conteneurs qui ne sont pas encore prêts (sans erreur)
+            if [ "$db_running" = "no" ] && [ "$db_exited_status" = "no" ]; then
+              echo ""
+              echo "⚠️ DB container not running yet (may still be starting). Recent logs:"
+              docker compose logs --tail=10 db 2>/dev/null || echo "Cannot get DB logs yet"
             fi
-            if [ "$web_running" = "no" ] && [ "$web_exited" = "no" ]; then
-              echo "⚠️ Web container not running yet. Recent logs:"
-              docker compose logs web 2>/dev/null | tail -15 || echo "Cannot get Web logs"
+            if [ "$web_running" = "no" ] && [ "$web_exited_status" = "no" ]; then
+              echo ""
+              echo "⚠️ Web container not running yet (may still be starting). Recent logs:"
+              docker compose logs --tail=10 web 2>/dev/null || echo "Cannot get Web logs yet"
             fi
-            if [ "$mongo_running" = "no" ] && [ "$mongo_exited" = "no" ]; then
-              echo "⚠️ Mongo container not running yet. Recent logs:"
-              docker compose logs mongodb 2>/dev/null | tail -15 || echo "Cannot get Mongo logs"
+            if [ "$mongo_running" = "no" ] && [ "$mongo_exited_status" = "no" ]; then
+              echo ""
+              echo "⚠️ Mongo container not running yet (may still be starting). Recent logs:"
+              docker compose logs --tail=10 mongodb 2>/dev/null || echo "Cannot get Mongo logs yet"
             fi
             
+            # Si c'est la dernière tentative, afficher toutes les informations
             if [ $attempt -eq $((max_attempts - 1)) ]; then
+              echo ""
               echo "❌ Containers did not start within timeout!"
               echo ""
-              echo "=== Full container status ==="
-              docker compose ps
+              echo "=== Final status check ==="
+              echo "Web running: $web_running"
+              echo "DB running: $db_running"
+              echo "Mongo running: $mongo_running"
               echo ""
-              echo "=== Full container logs ==="
-              docker compose logs
+              echo "=== All containers status (including stopped) ==="
+              docker ps -a | grep -E "parking_app|CONTAINER|NAME"
               echo ""
-              echo "=== Docker system info ==="
-              docker ps -a
-              docker system df
+              echo "=== Checking which containers are missing ==="
+              if [ "$web_running" = "no" ]; then
+                echo "❌ Web container is NOT running"
+                echo "Web container details:"
+                docker ps -a --filter "name=parking_app_web" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+              fi
+              if [ "$db_running" = "no" ]; then
+                echo "❌ DB container is NOT running"
+                echo "DB container details:"
+                docker ps -a --filter "name=parking_app_db" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+              fi
+              if [ "$mongo_running" = "no" ]; then
+                echo "❌ Mongo container is NOT running"
+                echo "Mongo container details:"
+                docker ps -a --filter "name=parking_app_mongodb" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+              fi
+              echo ""
+              echo "=== Container logs summary ==="
+              echo "--- DB Logs (last 50 lines) ---"
+              docker compose logs --tail=50 db 2>/dev/null || echo "No DB logs available"
+              echo ""
+              echo "--- Web Logs (last 50 lines) ---"
+              docker compose logs --tail=50 web 2>/dev/null || echo "No Web logs available"
+              echo ""
+              echo "--- Mongo Logs (last 50 lines) ---"
+              docker compose logs --tail=50 mongodb 2>/dev/null || echo "No Mongo logs available"
+              echo ""
+              echo "=== Docker compose status ==="
+              docker compose ps -a
               exit 1
             fi
             
-            echo "Waiting 3 seconds before next check..."
-            sleep 3
+            echo ""
+            echo "Waiting 4 seconds before next check..."
+            sleep 4
             attempt=$((attempt+1))
           done
           
-          echo ""
-          echo "=== Final container status ==="
-          docker compose ps
-          
-          # Attendre un peu plus pour que les services démarrent complètement
-          echo "Waiting 5 more seconds for services to fully initialize..."
-          sleep 5
+          if [ "$all_running" = "true" ]; then
+            echo ""
+            echo "=== Final container status ==="
+            docker compose ps
+            echo ""
+            echo "✅ All containers are running! Waiting 5 more seconds for services to fully initialize..."
+            sleep 5
+          fi
 
       - name: Debug - Check container files
         run: |
