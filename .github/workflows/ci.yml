@@ -333,7 +333,10 @@ jobs:
           MONGO_USER=parking_mongo
           MONGO_PASSWORD=test_password
           MONGO_DB=parking_db_test
+          JWT_SECRET_KEY=test-jwt-secret-key-for-ci-cd
           EOF
+          echo "✅ .env file created:"
+          cat .env
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -357,53 +360,118 @@ jobs:
         run: docker compose build --no-cache
 
       - name: Start Docker containers
-        run: docker compose up -d
+        run: |
+          echo "Starting Docker containers..."
+          docker compose up -d
+          
+          # Attendre un peu pour que les conteneurs démarrent
+          echo "Waiting 5 seconds for containers to initialize..."
+          sleep 5
+          
+          # Vérifier immédiatement le statut
+          echo "Initial container status:"
+          docker compose ps
 
       - name: Wait for containers to be running
         run: |
-          echo "Waiting for containers to start..."
-          max_attempts=60
+          echo "=== Checking container status ==="
+          max_attempts=40
           attempt=0
-          containers_up=false
           
           while [ $attempt -lt $max_attempts ]; do
-            # Vérifier que tous les conteneurs sont en cours d'exécution
-            if docker compose ps | grep -qE "(parking_app_web|parking_app_db|parking_app_mongodb).*Up"; then
-              containers_up=true
-              echo "✅ Containers are starting up"
+            echo ""
+            echo "Attempt $((attempt+1))/$max_attempts:"
+            docker compose ps
+            
+            # Vérifier le statut de chaque conteneur (plus détaillé)
+            web_status_line=$(docker compose ps web 2>/dev/null | tail -n +3 | head -1)
+            db_status_line=$(docker compose ps db 2>/dev/null | tail -n +3 | head -1)
+            mongo_status_line=$(docker compose ps mongodb 2>/dev/null | tail -n +3 | head -1)
+            
+            echo "Web container status: $web_status_line"
+            echo "DB container status: $db_status_line"
+            echo "Mongo container status: $mongo_status_line"
+            
+            # Vérifier si les conteneurs sont en cours d'exécution
+            web_running=$(echo "$web_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
+            db_running=$(echo "$db_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
+            mongo_running=$(echo "$mongo_status_line" | grep -qE "Up|running" && echo "yes" || echo "no")
+            
+            # Vérifier si un conteneur a échoué (Exit code non zéro)
+            web_exited=$(echo "$web_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
+            db_exited=$(echo "$db_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
+            mongo_exited=$(echo "$mongo_status_line" | grep -qE "Exit [1-9]" && echo "yes" || echo "no")
+            
+            # Si un conteneur a échoué, afficher ses logs et arrêter
+            if [ "$db_exited" = "yes" ]; then
+              echo "❌ DB container has exited with error! Full logs:"
+              docker compose logs db
+              echo ""
+              echo "Checking DB container details:"
+              docker compose ps db
+              echo ""
+              echo "Trying to inspect DB container:"
+              docker compose ps -a db || docker ps -a | grep db
+              exit 1
+            fi
+            if [ "$web_exited" = "yes" ]; then
+              echo "❌ Web container has exited with error! Full logs:"
+              docker compose logs web
+              exit 1
+            fi
+            if [ "$mongo_exited" = "yes" ]; then
+              echo "❌ Mongo container has exited with error! Full logs:"
+              docker compose logs mongodb
+              exit 1
+            fi
+            
+            # Si tous les conteneurs sont en cours d'exécution
+            if [ "$web_running" = "yes" ] && [ "$db_running" = "yes" ] && [ "$mongo_running" = "yes" ]; then
+              echo "✅ All containers are running!"
               break
             fi
-            echo "Waiting for containers... (attempt $((attempt+1))/$max_attempts)"
-            sleep 2
+            
+            # Si un conteneur n'est pas en cours d'exécution, afficher ses logs (mais continuer)
+            if [ "$db_running" = "no" ] && [ "$db_exited" = "no" ]; then
+              echo "⚠️ DB container not running yet. Recent logs:"
+              docker compose logs db 2>/dev/null | tail -15 || echo "Cannot get DB logs"
+            fi
+            if [ "$web_running" = "no" ] && [ "$web_exited" = "no" ]; then
+              echo "⚠️ Web container not running yet. Recent logs:"
+              docker compose logs web 2>/dev/null | tail -15 || echo "Cannot get Web logs"
+            fi
+            if [ "$mongo_running" = "no" ] && [ "$mongo_exited" = "no" ]; then
+              echo "⚠️ Mongo container not running yet. Recent logs:"
+              docker compose logs mongodb 2>/dev/null | tail -15 || echo "Cannot get Mongo logs"
+            fi
+            
+            if [ $attempt -eq $((max_attempts - 1)) ]; then
+              echo "❌ Containers did not start within timeout!"
+              echo ""
+              echo "=== Full container status ==="
+              docker compose ps
+              echo ""
+              echo "=== Full container logs ==="
+              docker compose logs
+              echo ""
+              echo "=== Docker system info ==="
+              docker ps -a
+              docker system df
+              exit 1
+            fi
+            
+            echo "Waiting 3 seconds before next check..."
+            sleep 3
             attempt=$((attempt+1))
           done
           
-          if [ "$containers_up" != "true" ]; then
-            echo "❌ Containers did not start within timeout!"
-            echo "Container status:"
-            docker compose ps
-            echo "Container logs:"
-            docker compose logs
-            exit 1
-          fi
-          
-          echo "Checking container status:"
+          echo ""
+          echo "=== Final container status ==="
           docker compose ps
           
-          # Vérifier que le conteneur db existe et est en cours d'exécution
-          if ! docker compose ps | grep -q "parking_app_db.*Up"; then
-            echo "❌ Container 'db' is not running!"
-            echo "Container logs:"
-            docker compose logs db || echo "Cannot get logs for db"
-            docker compose ps
-            exit 1
-          fi
-          
-          echo "✅ All containers are running!"
-          
-          # Attendre un peu pour que les services démarrent complètement
-          echo "Waiting 10 seconds for services to initialize..."
-          sleep 10
+          # Attendre un peu plus pour que les services démarrent complètement
+          echo "Waiting 5 more seconds for services to fully initialize..."
+          sleep 5
 
       - name: Debug - Check container files
         run: |
@@ -431,7 +499,7 @@ jobs:
             
             # Vérifier si PostgreSQL est prêt (essayer pg_isready dans le conteneur)
             if docker compose exec -T db sh -c "pg_isready -U parking_user" 2>/dev/null | grep -q "accepting connections"; then
-              echo "✅ PostgreSQL is ready!"
+          echo "✅ PostgreSQL is ready!"
               postgres_ready=true
               break
             fi
@@ -488,7 +556,7 @@ jobs:
             
             # Vérifier si MongoDB est prêt
             if docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null | grep -q "ok"; then
-              echo "✅ MongoDB is ready!"
+          echo "✅ MongoDB is ready!"
               mongo_ready=true
               break
             fi
