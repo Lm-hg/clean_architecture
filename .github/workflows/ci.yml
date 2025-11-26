@@ -72,6 +72,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
 
+      - name: Regenerate autoload files
+        run: composer dump-autoload --optimize
+
       - name: Check PHP syntax errors
         run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
 
