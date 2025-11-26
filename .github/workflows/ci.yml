@@ -362,7 +362,31 @@ jobs:
       - name: Wait for containers to be running
         run: |
           echo "Waiting for containers to start..."
-          timeout 60 bash -c 'until docker compose ps | grep -q "Up"; do echo "Waiting for containers..."; sleep 2; done'
+          max_attempts=60
+          attempt=0
+          containers_up=false
+          
+          while [ $attempt -lt $max_attempts ]; do
+            # Vérifier que tous les conteneurs sont en cours d'exécution
+            if docker compose ps | grep -qE "(parking_app_web|parking_app_db|parking_app_mongodb).*Up"; then
+              containers_up=true
+              echo "✅ Containers are starting up"
+              break
+            fi
+            echo "Waiting for containers... (attempt $((attempt+1))/$max_attempts)"
+            sleep 2
+            attempt=$((attempt+1))
+          done
+          
+          if [ "$containers_up" != "true" ]; then
+            echo "❌ Containers did not start within timeout!"
+            echo "Container status:"
+            docker compose ps
+            echo "Container logs:"
+            docker compose logs
+            exit 1
+          fi
+          
           echo "Checking container status:"
           docker compose ps
           
@@ -374,7 +398,12 @@ jobs:
             docker compose ps
             exit 1
           fi
+          
           echo "✅ All containers are running!"
+          
+          # Attendre un peu pour que les services démarrent complètement
+          echo "Waiting 10 seconds for services to initialize..."
+          sleep 10
 
       - name: Debug - Check container files
         run: |
@@ -385,24 +414,102 @@ jobs:
 
       - name: Wait for services to be ready
         run: |
-          echo "Waiting for PostgreSQL..."
-          # Attendre que le conteneur soit vraiment prêt
-          timeout 90 bash -c 'until docker compose exec -T db pg_isready -U parking_user 2>/dev/null; do echo "Waiting for PostgreSQL..."; sleep 3; done'
-          echo "✅ PostgreSQL is ready!"
+          echo "=== Waiting for PostgreSQL ==="
+          max_attempts=90
+          attempt=0
+          postgres_ready=false
+          
+          while [ $attempt -lt $max_attempts ]; do
+            # Vérifier si le conteneur est en cours d'exécution
+            if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
+              echo "⚠️ Container 'db' is not running! (attempt $((attempt+1))/$max_attempts)"
+              docker compose ps db 2>/dev/null || echo "Cannot check container status"
+              sleep 3
+              attempt=$((attempt+1))
+              continue
+            fi
+            
+            # Vérifier si PostgreSQL est prêt (essayer pg_isready dans le conteneur)
+            if docker compose exec -T db sh -c "pg_isready -U parking_user" 2>/dev/null | grep -q "accepting connections"; then
+              echo "✅ PostgreSQL is ready!"
+              postgres_ready=true
+              break
+            fi
+            
+            # Si pg_isready n'est pas disponible, vérifier que le conteneur répond
+            if docker compose exec -T db sh -c "psql -U parking_user -d parking_db_test -c 'SELECT 1'" 2>/dev/null | grep -q "1"; then
+              echo "✅ PostgreSQL is ready (verified via psql)!"
+              postgres_ready=true
+              break
+            fi
+            
+            echo "Waiting for PostgreSQL... (attempt $((attempt+1))/$max_attempts)"
+            sleep 3
+            attempt=$((attempt+1))
+          done
+          
+          if [ "$postgres_ready" != "true" ]; then
+            echo "❌ PostgreSQL did not become ready within timeout!"
+            echo "PostgreSQL logs:"
+            docker compose logs db | tail -50
+            echo ""
+            echo "Container status:"
+            docker compose ps db
+            echo ""
+            echo "Trying to connect manually:"
+            docker compose exec -T db pg_isready -U parking_user || echo "pg_isready failed"
+            docker compose exec -T db psql -U parking_user -l || echo "psql -l failed"
+            exit 1
+          fi
           
           # Vérification supplémentaire
-          docker compose exec -T db pg_isready -U parking_user || {
-            echo "❌ PostgreSQL is not ready after waiting!"
-            docker compose logs db | tail -20
+          echo "Verifying PostgreSQL connection..."
+          if docker compose exec -T db sh -c "pg_isready -U parking_user" 2>/dev/null | grep -q "accepting connections"; then
+            echo "✅ PostgreSQL connection verified!"
+          else
+            echo "⚠️ pg_isready check failed, but continuing..."
+          fi
+          
+          echo ""
+          echo "=== Waiting for MongoDB ==="
+          max_attempts=60
+          attempt=0
+          mongo_ready=false
+          
+          while [ $attempt -lt $max_attempts ]; do
+            # Vérifier si le conteneur est en cours d'exécution
+            if ! docker compose ps mongodb | grep -q "Up"; then
+              echo "⚠️ Container 'mongodb' is not running! (attempt $((attempt+1))/$max_attempts)"
+              docker compose ps mongodb
+              sleep 3
+              attempt=$((attempt+1))
+              continue
+            fi
+            
+            # Vérifier si MongoDB est prêt
+            if docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null | grep -q "ok"; then
+              echo "✅ MongoDB is ready!"
+              mongo_ready=true
+              break
+            fi
+            
+            echo "Waiting for MongoDB... (attempt $((attempt+1))/$max_attempts)"
+            sleep 3
+            attempt=$((attempt+1))
+          done
+          
+          if [ "$mongo_ready" != "true" ]; then
+            echo "❌ MongoDB did not become ready within timeout!"
+            echo "MongoDB logs:"
+            docker compose logs mongodb | tail -50
+            echo "Container status:"
+            docker compose ps mongodb
             exit 1
-          }
+          fi
           
-          echo "Waiting for MongoDB..."
-          timeout 90 bash -c 'until docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null; do echo "Waiting for MongoDB..."; sleep 3; done'
-          echo "✅ MongoDB is ready!"
-          
-          echo "Waiting for web server to start..."
-          sleep 15
+          echo ""
+          echo "Waiting for web server to initialize..."
+          sleep 10
           echo "✅ All services should be ready!"
 
       - name: Check container health
