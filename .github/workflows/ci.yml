@@ -65,15 +65,21 @@ jobs:
         uses: actions/cache@v3
         with:
           path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}-${{ hashFiles('**/composer.json') }}
           restore-keys: |
             ${{ runner.os }}-composer-
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
 
-      - name: Regenerate autoload files
-        run: composer dump-autoload --optimize
+      - name: Force regenerate autoload files (fix case sensitivity)
+        run: |
+          # Supprimer l'ancien autoloader pour forcer la régénération
+          rm -f vendor/composer/autoload*.php
+          rm -rf vendor/composer/autoload_classmap.php vendor/composer/autoload_namespaces.php vendor/composer/autoload_psr4.php vendor/composer/autoload_static.php 2>/dev/null || true
+          # Régénérer l'autoloader avec la structure actuelle
+          composer dump-autoload --optimize --no-interaction
+          echo "✅ Autoloader regenerated with current file structure"
 
       - name: Check PHP syntax errors
         run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
@@ -119,8 +125,39 @@ jobs:
             exit 1
           fi
 
-      - name: Regenerate autoload after migration
-        run: composer dump-autoload --optimize
+      - name: Regenerate autoload after migration (ensure all classes are loaded)
+        run: |
+          composer dump-autoload --optimize --no-interaction
+          echo "✅ Autoloader regenerated after database migration"
+          # Vérifier que les classes critiques sont chargées
+          php -r "require 'vendor/autoload.php'; echo 'GetUserUseCase: ' . (class_exists('App\Application\UseCases\User\GetUserUseCase') ? 'OK' : 'MISSING') . PHP_EOL; echo 'UserApiFunctionalTestHelper: ' . (class_exists('Tests\Functional\User\UserApiFunctionalTestHelper') ? 'OK' : 'MISSING') . PHP_EOL;"
+
+      - name: Verify critical classes are loaded before tests
+        run: |
+          echo "Verifying critical classes are available..."
+          php -r "
+          require 'vendor/autoload.php';
+          \$classes = [
+            'App\Application\UseCases\User\GetUserUseCase',
+            'App\Application\UseCases\User\ListUsersUseCase',
+            'App\Application\UseCases\User\UpdateUserUseCase',
+            'Tests\Functional\User\UserApiFunctionalTestHelper'
+          ];
+          \$allOk = true;
+          foreach (\$classes as \$class) {
+            if (class_exists(\$class)) {
+              echo \"✅ \$class found\" . PHP_EOL;
+            } else {
+              echo \"❌ \$class NOT FOUND\" . PHP_EOL;
+              \$allOk = false;
+            }
+          }
+          if (!\$allOk) {
+            echo PHP_EOL . \"ERROR: Some critical classes are missing!\" . PHP_EOL;
+            exit(1);
+          }
+          echo PHP_EOL . \"✅ All critical classes are available\" . PHP_EOL;
+          "
 
       - name: Run PHPUnit tests
         env:
