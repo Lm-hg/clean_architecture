@@ -159,7 +159,7 @@ CREATE TABLE stationnements (
 -- Abonnements table (subscriptions)
 CREATE TABLE abonnements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
     subscription_type subscription_type NOT NULL DEFAULT 'monthly',
     start_date DATE NOT NULL,

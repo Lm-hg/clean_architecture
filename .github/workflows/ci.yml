@@ -431,8 +431,22 @@ jobs:
               echo "=== DB Container Status ==="
               docker ps -a --filter "name=parking_app_db"
               echo ""
-              echo "=== DB Container Logs ==="
+              echo "=== DB Container Logs (ALL) ==="
               docker compose logs db
+              echo ""
+              echo "=== DB Container Logs (last 100 lines) ==="
+              docker compose logs --tail=100 db
+              echo ""
+              echo "=== Trying to get exit code ==="
+              docker inspect parking_app_db --format='{{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
+              echo ""
+              echo "=== Checking init.sql file ==="
+              if [ -f "src/docker/postgres/init.sql" ]; then
+                echo "init.sql exists, checking first 20 lines:"
+                head -20 src/docker/postgres/init.sql
+              else
+                echo "❌ init.sql file not found!"
+              fi
               exit 1
             fi
             if [ "$web_exited_status" = "yes" ]; then
