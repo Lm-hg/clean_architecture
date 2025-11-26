@@ -24,6 +24,8 @@ services:
       MONGO_DB: ${MONGO_DB}
       MONGO_USER: ${MONGO_USER}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
+      # JWT Authentication
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production}
 
   # 2. Service database (PostgreSQL)
   db:

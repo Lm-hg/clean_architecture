@@ -8,7 +8,7 @@
             "App\\Domain\\": "src/Domain/",
             "App\\Application\\": "src/Application/",
             "App\\Infrastructure\\": "src/Infrastructure/",
-            "App\\Presentation\\": "src/Presentation/"
+            "App\\Presenter\\": "src/presenter/"
         }
     },
     "autoload-dev": {
@@ -18,10 +18,11 @@
     },
     "require": {
         "php": "^8.3",
-        "ext-pdo": "*",
-        "ext-pdo_pgsql": "*",
         "ext-json": "*",
         "ext-mongodb": "*",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "firebase/php-jwt": "^6.11",
         "mongodb/mongodb": "^1.17"
     },
     "require-dev": {
