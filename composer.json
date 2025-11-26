@@ -8,7 +8,7 @@
             "App\\Domain\\": "src/Domain/",
             "App\\Application\\": "src/Application/",
             "App\\Infrastructure\\": "src/Infrastructure/",
-            "App\\Presenter\\": "src/presenter/"
+            "App\\Presenter\\": "src/Presenter/"
         }
     },
     "autoload-dev": {
