@@ -19,8 +19,13 @@ class UserRepositoryIntegrationTest extends TestCase
         // Connexion à la base de données
         $this->pdo = require __DIR__ . '/../../../../config/database.php';
         
-        // Nettoyer la table avant chaque test
-        $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        // Nettoyer la table avant chaque test (seulement si elle existe)
+        try {
+            $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        } catch (\PDOException $e) {
+            // Si la table n'existe pas, on continue quand même
+            // La migration doit être exécutée avant les tests
+        }
         
         // Créer le repository
         $this->repository = new UserRepository($this->pdo);
@@ -28,8 +33,12 @@ class UserRepositoryIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        // Nettoyer après chaque test
-        $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        // Nettoyer après chaque test (seulement si la table existe)
+        try {
+            $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        } catch (\PDOException $e) {
+            // Ignorer si la table n'existe pas
+        }
         parent::tearDown();
     }
 

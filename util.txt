@@ -1,3 +1,0 @@
-## pour tester les test unitaires fonctionels 
-
-docker-compose exec web vendor/bin/phpunit tests/functional/User/UserApiTest.php

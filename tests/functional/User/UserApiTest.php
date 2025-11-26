@@ -45,8 +45,13 @@ class UserApiTest extends TestCase
         require_once $realPath;
         $this->pdo = require $realPath;
         
-        // Nettoyer la table avant chaque test
-        $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        // Nettoyer la table avant chaque test (seulement si elle existe)
+        try {
+            $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        } catch (\PDOException $e) {
+            // Si la table n'existe pas, on continue quand même
+            // Les tests d'intégration échoueront mais c'est attendu
+        }
         
         // Reset token
         $this->authToken = null;
@@ -57,8 +62,12 @@ class UserApiTest extends TestCase
 
     protected function tearDown(): void
     {
-        // Nettoyer après chaque test
-        $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        // Nettoyer après chaque test (seulement si la table existe)
+        try {
+            $this->pdo->exec('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+        } catch (\PDOException $e) {
+            // Ignorer si la table n'existe pas
+        }
         $this->authToken = null;
         parent::tearDown();
     }

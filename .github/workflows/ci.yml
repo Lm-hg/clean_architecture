@@ -75,12 +75,55 @@ jobs:
       - name: Check PHP syntax errors
         run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U parking_user; do echo "Waiting..."; sleep 2; done'
+          echo "✅ PostgreSQL is ready!"
+
+      - name: Create users table (run migration)
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGDATABASE: parking_db_test
+          PGUSER: parking_user
+          PGPASSWORD: test_password
+        run: |
+          echo "Creating users table..."
+          export PGPASSWORD="$PGPASSWORD"
+          
+          # Exécuter la migration
+          if psql -h localhost -U parking_user -d parking_db_test -f src/docker/postgres/migrations/001_create_users_table.sql; then
+            echo "✅ Migration executed successfully!"
+          else
+            echo "❌ Migration failed!"
+            exit 1
+          fi
+          
+          # Vérifier que la table existe
+          echo "Verifying table exists..."
+          if psql -h localhost -U parking_user -d parking_db_test -c "\d users" > /dev/null 2>&1; then
+            echo "✅ Users table verified!"
+          else
+            echo "❌ Users table verification failed!"
+            echo "Checking if table exists..."
+            psql -h localhost -U parking_user -d parking_db_test -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users';"
+            exit 1
+          fi
+
       - name: Run PHPUnit tests
         env:
           DB_HOST: localhost
           DB_NAME: parking_db_test
           DB_USER: parking_user
           DB_PASSWORD: test_password
+          DB_PORT: 5432
+          JWT_SECRET_KEY: test-jwt-secret-key-for-ci-cd
           MONGO_HOST: localhost
           MONGO_DB: parking_db_test
           MONGO_USER: parking_mongo
