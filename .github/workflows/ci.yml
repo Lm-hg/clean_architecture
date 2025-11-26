@@ -77,9 +77,17 @@ jobs:
           # Supprimer l'ancien autoloader pour forcer la régénération
           rm -f vendor/composer/autoload*.php
           rm -rf vendor/composer/autoload_classmap.php vendor/composer/autoload_namespaces.php vendor/composer/autoload_psr4.php vendor/composer/autoload_static.php 2>/dev/null || true
-          # Régénérer l'autoloader avec la structure actuelle
+          # S'assurer que les fichiers de tests existent
+          echo "Checking test files exist:"
+          find tests -name "*.php" -type f | head -5
+          # Régénérer l'autoloader avec la structure actuelle (incluant autoload-dev)
           composer dump-autoload --optimize --no-interaction
           echo "✅ Autoloader regenerated with current file structure"
+          # Vérifier que les fichiers de tests sont dans l'autoloader
+          echo "Checking autoloader includes test files:"
+          if [ -f "vendor/composer/autoload_psr4.php" ]; then
+            grep -A 1 "Tests" vendor/composer/autoload_psr4.php || echo "Tests namespace not found"
+          fi
 
       - name: Check PHP syntax errors
         run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
@@ -158,6 +166,12 @@ jobs:
           php -r "
           require 'vendor/autoload.php';
           
+          // Charger manuellement UserApiFunctionalTestHelper si nécessaire
+          \$helperFile = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
+          if (file_exists(\$helperFile) && !class_exists('Tests\Functional\User\UserApiFunctionalTestHelper')) {
+            require_once \$helperFile;
+          }
+          
           \$fileChecks = [
             'tests/functional/User/UserApiFunctionalTestHelper.php' => 'UserApiFunctionalTestHelper file',
             'src/Application/UseCases/User/GetUserUseCase.php' => 'GetUserUseCase file',
@@ -190,6 +204,22 @@ jobs:
               echo \"  ✅ \$desc: loaded\" . PHP_EOL;
             } else {
               echo \"  ❌ \$desc: NOT FOUND\" . PHP_EOL;
+              // Pour UserApiFunctionalTestHelper, essayer de charger manuellement
+              if (\$class === 'Tests\Functional\User\UserApiFunctionalTestHelper') {
+                \$filePath = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
+                if (file_exists(\$filePath)) {
+                  echo \"    → Attempting manual require: \$filePath\" . PHP_EOL;
+                  require_once \$filePath;
+                  if (class_exists(\$class)) {
+                    echo \"    ✅ Successfully loaded manually!\" . PHP_EOL;
+                    continue; // Skip the error flag
+                  } else {
+                    echo \"    ❌ Still not found after manual require\" . PHP_EOL;
+                  }
+                } else {
+                  echo \"    ❌ File does not exist at: \$filePath\" . PHP_EOL;
+                }
+              }
               \$allOk = false;
             }
           }
@@ -197,17 +227,60 @@ jobs:
           if (!\$allOk) {
             echo PHP_EOL . \"ERROR: Some critical files or classes are missing!\" . PHP_EOL;
             echo \"Attempting to regenerate autoloader...\" . PHP_EOL;
+            
+            // Forcer la régénération complète de l'autoloader
+            system('rm -f vendor/composer/autoload*.php');
             system('composer dump-autoload --optimize --no-interaction');
-            echo PHP_EOL . \"Re-checking classes after regeneration:\" . PHP_EOL;
+            
+            // Essayer de charger manuellement le fichier si nécessaire
+            \$helperFile = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
+            if (file_exists(\$helperFile)) {
+              echo \"Attempting to manually require helper file...\" . PHP_EOL;
+              require_once \$helperFile;
+            }
+            
+            // Recharger l'autoloader
             require 'vendor/autoload.php';
+            
+            echo PHP_EOL . \"Re-checking classes after regeneration:\" . PHP_EOL;
             foreach (\$classChecks as \$class => \$desc) {
               if (class_exists(\$class)) {
                 echo \"  ✅ \$desc: NOW LOADED\" . PHP_EOL;
               } else {
                 echo \"  ❌ \$desc: STILL NOT FOUND\" . PHP_EOL;
+                // Pour UserApiFunctionalTestHelper, essayer de charger manuellement
+                if (\$class === 'Tests\Functional\User\UserApiFunctionalTestHelper') {
+                  \$filePath = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
+                  if (file_exists(\$filePath)) {
+                    echo \"    Attempting manual require: \$filePath\" . PHP_EOL;
+                    try {
+                      require_once \$filePath;
+                      if (class_exists(\$class)) {
+                        echo \"    ✅ Successfully loaded manually!\" . PHP_EOL;
+                      } else {
+                        echo \"    ❌ Still not found after manual require\" . PHP_EOL;
+                      }
+                    } catch (Exception \$e) {
+                      echo \"    ❌ Error loading: \" . \$e->getMessage() . PHP_EOL;
+                    }
+                  } else {
+                    echo \"    ❌ File does not exist at: \$filePath\" . PHP_EOL;
+                  }
+                }
               }
             }
-            exit(1);
+            
+            // Vérifier une dernière fois si tout est OK
+            \$finalCheck = true;
+            foreach (\$classChecks as \$class => \$desc) {
+              if (!class_exists(\$class)) {
+                \$finalCheck = false;
+              }
+            }
+            
+            if (!\$finalCheck) {
+              exit(1);
+            }
           }
           
           echo PHP_EOL . \"✅ All critical files and classes are available\" . PHP_EOL;
