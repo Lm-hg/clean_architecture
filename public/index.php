@@ -20,6 +20,20 @@ require_once BASE_PATH . '/vendor/autoload.php';
 // Load environment variables (if using vlucas/phpdotenv, otherwise manual loading)
 // For now, we'll use getenv() which works with docker-compose environment variables
 
+/**
+ * Helper function to get request body (supports testing via $GLOBALS)
+ */
+function getRequestBody(): string
+{
+    // Support for testing: if TEST_REQUEST_BODY is set, use it
+    if (isset($GLOBALS['TEST_REQUEST_BODY'])) {
+        return $GLOBALS['TEST_REQUEST_BODY'];
+    }
+    
+    // Otherwise, read from php://input
+    return file_get_contents('php://input') ?: '';
+}
+
 // CORS Headers (if needed for API)
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -127,6 +141,177 @@ try {
                 'error' => $e->getMessage()
             ]);
         }
+        exit;
+    }
+
+    // API Auth routes (public - no authentication required)
+    if (preg_match('#^/api/auth/(login|register)$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+        
+        // Initialize dependencies
+        $pdo = require BASE_PATH . '/config/database.php';
+        
+        // Repository
+        $userRepository = new \App\Infrastructure\Persistence\Sql\UserRepository($pdo);
+        
+        // JWT Service
+        $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+        $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+        
+        // Use Cases
+        $loginUserUseCase = new \App\Application\UseCases\Auth\LoginUserUseCase($userRepository, $jwtService);
+        $createUserUseCase = new \App\Application\UseCases\User\CreateUserUseCase($userRepository);
+        
+        // Controller
+        $authController = new \App\Presenter\Http\Controllers\Api\AuthController(
+            $loginUserUseCase,
+            $createUserUseCase
+        );
+        
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+        
+        // Route handling
+        $action = $matches[1];
+        
+        if ($requestMethod === 'POST') {
+            if ($action === 'login') {
+                $response = $authController->login($requestData);
+            } elseif ($action === 'register') {
+                $response = $authController->register($requestData);
+            } else {
+                http_response_code(404);
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Endpoint not found'
+                ];
+            }
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+        }
+        
+        echo json_encode($response, JSON_PRETTY_PRINT);
+        exit;
+    }
+
+    // API User routes (protected - authentication required)
+    if (preg_match('#^/api/users(/.*)?$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+        
+        // Initialize JWT Service and Authentication Middleware
+        $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+        $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+        $authMiddleware = new \App\Presenter\Http\Middleware\AuthenticationMiddleware($jwtService);
+        
+        // Verify authentication
+        $authenticatedUser = $authMiddleware->authenticate();
+        
+        if ($authenticatedUser === null) {
+            http_response_code(401);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Unauthorized. Valid authentication token required.'
+            ], JSON_PRETTY_PRINT);
+            exit;
+        }
+        
+        // Store authenticated user info for use in controllers
+        $_SERVER['AUTHENTICATED_USER'] = $authenticatedUser;
+        
+        // Initialize dependencies
+        $pdo = require BASE_PATH . '/config/database.php';
+        
+        // Repository
+        $userRepository = new \App\Infrastructure\Persistence\Sql\UserRepository($pdo);
+        
+        // Use Cases
+        $createUserUseCase = new \App\Application\UseCases\User\CreateUserUseCase($userRepository);
+        $getUserUseCase = new \App\Application\UseCases\User\GetUserUseCase($userRepository);
+        $updateUserUseCase = new \App\Application\UseCases\User\UpdateUserUseCase($userRepository);
+        $deleteUserUseCase = new \App\Application\UseCases\User\DeleteUserUseCase($userRepository);
+        $listUsersUseCase = new \App\Application\UseCases\User\ListUsersUseCase($userRepository);
+        
+        // Controller
+        $userController = new \App\Presenter\Http\Controllers\Api\UserController(
+            $createUserUseCase,
+            $getUserUseCase,
+            $updateUserUseCase,
+            $deleteUserUseCase,
+            $listUsersUseCase
+        );
+        
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST', 'PUT'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+        
+        // Route handling
+        $userId = null;
+        if (isset($matches[1]) && $matches[1] !== '') {
+            $userId = trim($matches[1], '/');
+        }
+        
+        switch ($requestMethod) {
+            case 'GET':
+                if ($userId) {
+                    // GET /api/users/{id}
+                    $response = $userController->show($userId);
+                } else {
+                    // GET /api/users
+                    $response = $userController->index();
+                }
+                break;
+                
+            case 'POST':
+                // POST /api/users
+                $response = $userController->create($requestData);
+                break;
+                
+            case 'PUT':
+                if ($userId) {
+                    // PUT /api/users/{id}
+                    $response = $userController->update($userId, $requestData);
+                } else {
+                    http_response_code(400);
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'User ID is required for update'
+                    ];
+                }
+                break;
+                
+            case 'DELETE':
+                if ($userId) {
+                    // DELETE /api/users/{id}
+                    $response = $userController->delete($userId);
+                } else {
+                    http_response_code(400);
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'User ID is required for deletion'
+                    ];
+                }
+                break;
+                
+            default:
+                http_response_code(405);
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Method not allowed'
+                ];
+        }
+        
+        echo json_encode($response, JSON_PRETTY_PRINT);
         exit;
     }
 

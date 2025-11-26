@@ -10,8 +10,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ENUM TYPES
 -- ============================================
 
--- User roles
-CREATE TYPE user_role AS ENUM ('owner', 'customer', 'admin');
+-- Note: User roles are now validated using CHECK constraint instead of ENUM
+-- Allowed roles: 'admin', 'user', 'ownerParking'
 
 -- Reservation status
 CREATE TYPE reservation_status AS ENUM ('pending', 'confirmed', 'cancelled', 'completed');
@@ -29,28 +29,35 @@ CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled');
 -- TABLES
 -- ============================================
 
--- Users table (owners, customers, admins)
+-- Users table - Clean Architecture User Module
+-- Using VARCHAR(36) for UUID string format
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'ownerParking')),
+    first_name VARCHAR(255) NOT NULL CHECK (char_length(first_name) >= 2),
+    name VARCHAR(255) NOT NULL CHECK (char_length(name) >= 2),
     email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20),
-    role user_role NOT NULL DEFAULT 'customer',
-    -- Additional fields for parking owners
-    company_name VARCHAR(255),
-    siret VARCHAR(14),  -- French business registration number
-    is_active BOOLEAN NOT NULL DEFAULT true,
+    password VARCHAR(255) NOT NULL CHECK (char_length(password) >= 8),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL DEFAULT NULL
+    
+    -- Indexes for performance
+    CONSTRAINT users_email_unique UNIQUE (email)
 );
+
+-- Index for faster email lookups
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- Index for role-based queries
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+-- Index for created_at sorting
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 
 -- Parkings table (parking spots/locations)
 CREATE TABLE parkings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    owner_id UUID NOT NULL,
+    owner_id VARCHAR(36) NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     address TEXT NOT NULL,
@@ -81,7 +88,7 @@ CREATE TABLE parkings (
 -- Reservations table
 CREATE TABLE reservations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
@@ -125,7 +132,7 @@ CREATE TABLE payments (
 -- Stationnements table (actual parking sessions)
 CREATE TABLE stationnements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
     entry_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     exit_time TIMESTAMP,
@@ -152,7 +159,7 @@ CREATE TABLE stationnements (
 -- Abonnements table (subscriptions)
 CREATE TABLE abonnements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
     subscription_type subscription_type NOT NULL DEFAULT 'monthly',
     start_date DATE NOT NULL,
@@ -177,11 +184,6 @@ CREATE TABLE abonnements (
 -- ============================================
 -- INDEXES for Performance
 -- ============================================
-
--- Users indexes
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_deleted_at ON users(deleted_at);
 
 -- Parkings indexes
 CREATE INDEX idx_parkings_owner_id ON parkings(owner_id);
@@ -230,6 +232,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Apply trigger to all tables
+-- Note: Trigger function is created by the users table migration
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -252,17 +255,42 @@ CREATE TRIGGER update_abonnements_updated_at BEFORE UPDATE ON abonnements
 -- SEED DATA (Optional - for testing)
 -- ============================================
 
--- Insert a test admin user (password: 'admin123' - hashed with bcrypt)
-INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES
-('admin@parking.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User', 'admin');
+-- Insert test users with new structure
+-- IDs are generated as UUID v4 strings (VARCHAR(36))
+-- Password: 'password123' for all test users (hashed with bcrypt)
+
+-- Insert a test admin user
+INSERT INTO users (id, email, password, first_name, name, role) VALUES
+(
+    uuid_generate_v4()::text,
+    'admin@parking.com',
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    'Admin',
+    'User',
+    'admin'
+);
 
 -- Insert a test owner
-INSERT INTO users (email, password_hash, first_name, last_name, phone, role) VALUES
-('owner@parking.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'John', 'Doe', '+33612345678', 'owner');
+INSERT INTO users (id, email, password, first_name, name, role) VALUES
+(
+    uuid_generate_v4()::text,
+    'owner@parking.com',
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    'John',
+    'Doe',
+    'ownerParking'
+);
 
 -- Insert a test customer
-INSERT INTO users (email, password_hash, first_name, last_name, phone, role) VALUES
-('customer@parking.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Jane', 'Smith', '+33687654321', 'customer');
+INSERT INTO users (id, email, password, first_name, name, role) VALUES
+(
+    uuid_generate_v4()::text,
+    'customer@parking.com',
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    'Jane',
+    'Smith',
+    'user'
+);
 
 -- Insert test parkings (using the owner's ID)
 INSERT INTO parkings (owner_id, title, description, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots)
