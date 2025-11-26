@@ -1,5 +1,5 @@
 <?php
-namespace App\Application\UseCases;
+namespace App\Application\UseCases\Booking;
 
 use App\Domain\Entities\Booking;
 use App\Domain\Repositories\BookingRepositoryInterface;
