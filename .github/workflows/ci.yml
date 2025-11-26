@@ -132,31 +132,85 @@ jobs:
           # Vérifier que les classes critiques sont chargées
           php -r "require 'vendor/autoload.php'; echo 'GetUserUseCase: ' . (class_exists('App\Application\UseCases\User\GetUserUseCase') ? 'OK' : 'MISSING') . PHP_EOL; echo 'UserApiFunctionalTestHelper: ' . (class_exists('Tests\Functional\User\UserApiFunctionalTestHelper') ? 'OK' : 'MISSING') . PHP_EOL;"
 
-      - name: Verify critical classes are loaded before tests
+      - name: Verify critical files and classes before tests
         run: |
-          echo "Verifying critical classes are available..."
+          echo "=== Verifying file structure ==="
+          echo "Checking if test files exist:"
+          ls -la tests/functional/User/ || echo "Directory tests/functional/User/ not found!"
+          echo ""
+          echo "Checking for UserApiFunctionalTestHelper.php:"
+          find tests -name "UserApiFunctionalTestHelper.php" -type f || echo "File not found in tests/"
+          echo ""
+          echo "Checking UseCases directory:"
+          ls -la src/Application/UseCases/User/ || echo "Directory not found!"
+          echo ""
+          
+          echo "=== Verifying autoloader configuration ==="
+          if [ -f "vendor/composer/autoload_psr4.php" ]; then
+            echo "Autoloader file exists"
+            grep -A 1 "Tests" vendor/composer/autoload_psr4.php || echo "Tests namespace not found in autoloader"
+          else
+            echo "ERROR: Autoloader file missing!"
+          fi
+          echo ""
+          
+          echo "=== Verifying classes are loadable ==="
           php -r "
           require 'vendor/autoload.php';
-          \$classes = [
-            'App\Application\UseCases\User\GetUserUseCase',
-            'App\Application\UseCases\User\ListUsersUseCase',
-            'App\Application\UseCases\User\UpdateUserUseCase',
-            'Tests\Functional\User\UserApiFunctionalTestHelper'
+          
+          \$fileChecks = [
+            'tests/functional/User/UserApiFunctionalTestHelper.php' => 'UserApiFunctionalTestHelper file',
+            'src/Application/UseCases/User/GetUserUseCase.php' => 'GetUserUseCase file',
+            'src/Application/UseCases/User/ListUsersUseCase.php' => 'ListUsersUseCase file',
+            'src/Application/UseCases/User/UpdateUserUseCase.php' => 'UpdateUserUseCase file'
           ];
+          
+          \$classChecks = [
+            'App\Application\UseCases\User\GetUserUseCase' => 'GetUserUseCase class',
+            'App\Application\UseCases\User\ListUsersUseCase' => 'ListUsersUseCase class',
+            'App\Application\UseCases\User\UpdateUserUseCase' => 'UpdateUserUseCase class',
+            'Tests\Functional\User\UserApiFunctionalTestHelper' => 'UserApiFunctionalTestHelper class'
+          ];
+          
           \$allOk = true;
-          foreach (\$classes as \$class) {
-            if (class_exists(\$class)) {
-              echo \"✅ \$class found\" . PHP_EOL;
+          
+          echo \"Checking files exist:\" . PHP_EOL;
+          foreach (\$fileChecks as \$file => \$desc) {
+            if (file_exists(\$file)) {
+              echo \"  ✅ \$desc: exists\" . PHP_EOL;
             } else {
-              echo \"❌ \$class NOT FOUND\" . PHP_EOL;
+              echo \"  ❌ \$desc: MISSING at \$file\" . PHP_EOL;
               \$allOk = false;
             }
           }
+          
+          echo PHP_EOL . \"Checking classes are loadable:\" . PHP_EOL;
+          foreach (\$classChecks as \$class => \$desc) {
+            if (class_exists(\$class)) {
+              echo \"  ✅ \$desc: loaded\" . PHP_EOL;
+            } else {
+              echo \"  ❌ \$desc: NOT FOUND\" . PHP_EOL;
+              \$allOk = false;
+            }
+          }
+          
           if (!\$allOk) {
-            echo PHP_EOL . \"ERROR: Some critical classes are missing!\" . PHP_EOL;
+            echo PHP_EOL . \"ERROR: Some critical files or classes are missing!\" . PHP_EOL;
+            echo \"Attempting to regenerate autoloader...\" . PHP_EOL;
+            system('composer dump-autoload --optimize --no-interaction');
+            echo PHP_EOL . \"Re-checking classes after regeneration:\" . PHP_EOL;
+            require 'vendor/autoload.php';
+            foreach (\$classChecks as \$class => \$desc) {
+              if (class_exists(\$class)) {
+                echo \"  ✅ \$desc: NOW LOADED\" . PHP_EOL;
+              } else {
+                echo \"  ❌ \$desc: STILL NOT FOUND\" . PHP_EOL;
+              }
+            }
             exit(1);
           }
-          echo PHP_EOL . \"✅ All critical classes are available\" . PHP_EOL;
+          
+          echo PHP_EOL . \"✅ All critical files and classes are available\" . PHP_EOL;
           "
 
       - name: Run PHPUnit tests
