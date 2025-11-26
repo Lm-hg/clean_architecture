@@ -177,8 +177,8 @@ jobs:
             'src/Application/UseCases/User/GetUserUseCase.php' => 'GetUserUseCase file',
             'src/Application/UseCases/User/ListUsersUseCase.php' => 'ListUsersUseCase file',
             'src/Application/UseCases/User/UpdateUserUseCase.php' => 'UpdateUserUseCase file',
-            'src/Presenter/http/controllers/api/AuthController.php' => 'AuthController file',
-            'src/Presenter/http/controllers/api/UserController.php' => 'UserController file'
+            'src/Presenter/Http/Controllers/Api/AuthController.php' => 'AuthController file',
+            'src/Presenter/Http/Controllers/Api/UserController.php' => 'UserController file'
           ];
           
           \$classChecks = [

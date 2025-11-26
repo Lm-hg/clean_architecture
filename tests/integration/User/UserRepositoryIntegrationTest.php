@@ -134,7 +134,8 @@ class UserRepositoryIntegrationTest extends TestCase
         
         // Vérifier en base
         $found = $this->repository->findById($userId);
-        $this->assertEquals('John Updated', $found->getName());
+        $this->assertEquals('John', $found->getFirstName());
+        $this->assertEquals('Updated', $found->getName());
         $this->assertEquals('admin', $found->getRole());
         $this->assertTrue(password_verify('newpassword123', $found->getPassword()));
     }
