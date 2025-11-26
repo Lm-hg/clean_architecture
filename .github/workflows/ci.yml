@@ -119,6 +119,9 @@ jobs:
             exit 1
           fi
 
+      - name: Regenerate autoload after migration
+        run: composer dump-autoload --optimize
+
       - name: Run PHPUnit tests
         env:
           DB_HOST: localhost

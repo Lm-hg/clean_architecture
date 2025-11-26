@@ -4,6 +4,7 @@ namespace Tests\Functional\User;
 
 use PHPUnit\Framework\TestCase;
 use PDO;
+use Tests\Functional\User\UserApiFunctionalTestHelper;
 
 class UserApiTest extends TestCase
 {
