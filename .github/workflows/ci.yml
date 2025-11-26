@@ -176,13 +176,17 @@ jobs:
             'tests/functional/User/UserApiFunctionalTestHelper.php' => 'UserApiFunctionalTestHelper file',
             'src/Application/UseCases/User/GetUserUseCase.php' => 'GetUserUseCase file',
             'src/Application/UseCases/User/ListUsersUseCase.php' => 'ListUsersUseCase file',
-            'src/Application/UseCases/User/UpdateUserUseCase.php' => 'UpdateUserUseCase file'
+            'src/Application/UseCases/User/UpdateUserUseCase.php' => 'UpdateUserUseCase file',
+            'src/Presenter/http/controllers/api/AuthController.php' => 'AuthController file',
+            'src/Presenter/http/controllers/api/UserController.php' => 'UserController file'
           ];
           
           \$classChecks = [
             'App\Application\UseCases\User\GetUserUseCase' => 'GetUserUseCase class',
             'App\Application\UseCases\User\ListUsersUseCase' => 'ListUsersUseCase class',
             'App\Application\UseCases\User\UpdateUserUseCase' => 'UpdateUserUseCase class',
+            'App\Presenter\Http\Controllers\Api\AuthController' => 'AuthController class',
+            'App\Presenter\Http\Controllers\Api\UserController' => 'UserController class',
             'Tests\Functional\User\UserApiFunctionalTestHelper' => 'UserApiFunctionalTestHelper class'
           ];
           
@@ -355,19 +359,43 @@ jobs:
       - name: Start Docker containers
         run: docker compose up -d
 
+      - name: Wait for containers to be running
+        run: |
+          echo "Waiting for containers to start..."
+          timeout 60 bash -c 'until docker compose ps | grep -q "Up"; do echo "Waiting for containers..."; sleep 2; done'
+          echo "Checking container status:"
+          docker compose ps
+          
+          # Vérifier que le conteneur db existe et est en cours d'exécution
+          if ! docker compose ps | grep -q "parking_app_db.*Up"; then
+            echo "❌ Container 'db' is not running!"
+            echo "Container logs:"
+            docker compose logs db || echo "Cannot get logs for db"
+            docker compose ps
+            exit 1
+          fi
+          echo "✅ All containers are running!"
+
       - name: Debug - Check container files
         run: |
           echo "Checking /var/www/html in container:"
-          docker compose exec -T web ls -la /var/www/html
+          docker compose exec -T web ls -la /var/www/html || echo "Cannot access web container"
           echo "Checking vendor in container:"
           docker compose exec -T web ls -la /var/www/html/vendor || echo "Vendor not found in container"
-
 
       - name: Wait for services to be ready
         run: |
           echo "Waiting for PostgreSQL..."
-          timeout 90 bash -c 'until docker compose exec -T db pg_isready -U parking_user; do echo "Waiting for PostgreSQL..."; sleep 3; done'
+          # Attendre que le conteneur soit vraiment prêt
+          timeout 90 bash -c 'until docker compose exec -T db pg_isready -U parking_user 2>/dev/null; do echo "Waiting for PostgreSQL..."; sleep 3; done'
           echo "✅ PostgreSQL is ready!"
+          
+          # Vérification supplémentaire
+          docker compose exec -T db pg_isready -U parking_user || {
+            echo "❌ PostgreSQL is not ready after waiting!"
+            docker compose logs db | tail -20
+            exit 1
+          }
           
           echo "Waiting for MongoDB..."
           timeout 90 bash -c 'until docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null; do echo "Waiting for MongoDB..."; sleep 3; done'
