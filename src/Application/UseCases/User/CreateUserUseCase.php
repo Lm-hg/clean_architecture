@@ -33,9 +33,8 @@ class CreateUserUseCase
         // Hasher le mot de passe avant de le stocker
         $hashedPassword = password_hash($createUserDto->password->getPlainPassword(), PASSWORD_DEFAULT);
         
-        // Créer les dates au format string
+        // Créer les dates au format DateTime
         $now = new DateTime();
-        $dateString = $now->format('Y-m-d H:i:s');
         
         // Créer l'entité User avec l'UUID généré
         // Les validations (rôle, prénom, nom, email) sont maintenant dans le constructeur de UserEntity
@@ -46,8 +45,8 @@ class CreateUserUseCase
             $createUserDto->name,
             $createUserDto->email->getEmail(),
             $hashedPassword,
-            $dateString,
-            $dateString
+            $now,
+            clone $now
         );
         
         // Sauvegarder l'utilisateur

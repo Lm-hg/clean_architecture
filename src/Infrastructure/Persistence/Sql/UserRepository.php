@@ -89,8 +89,8 @@ class UserRepository implements UserRepositoryInterface
             ':name' => $user->getName(),
             ':email' => $user->getEmail(),
             ':password' => $user->getPassword(),
-            ':created_at' => $user->getCreatedAt(),
-            ':updated_at' => $user->getUpdatedAt(),
+            ':created_at' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
+            ':updated_at' => $user->getUpdatedAt()->format('Y-m-d H:i:s'),
         ]);
 
         if (!$success) {
@@ -114,7 +114,7 @@ class UserRepository implements UserRepositoryInterface
             ':first_name' => $user->getFirstName(),
             ':name' => $user->getName(),
             ':password' => $user->getPassword(),
-            ':updated_at' => $user->getUpdatedAt(),
+            ':updated_at' => $user->getUpdatedAt()->format('Y-m-d H:i:s'),
         ]);
 
         if (!$success) {
@@ -156,8 +156,8 @@ class UserRepository implements UserRepositoryInterface
             $row['name'],
             $row['email'],
             $row['password'],
-            $row['created_at'],
-            $row['updated_at']
+            new \DateTime($row['created_at']),
+            new \DateTime($row['updated_at'])
         );
     }
 }

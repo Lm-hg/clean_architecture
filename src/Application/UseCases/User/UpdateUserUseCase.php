@@ -32,9 +32,8 @@ class UpdateUserUseCase
         // Hasher le nouveau mot de passe s'il est fourni
         $hashedPassword = password_hash($updateUserDto->password->getPlainPassword(), PASSWORD_DEFAULT);
         
-        // Créer les dates
+        // Créer la date de mise à jour
         $now = new DateTime();
-        $updatedAt = $now->format('Y-m-d H:i:s');
         
         // Créer l'entité User mise à jour (on garde l'email et la date de création originaux)
         // Les validations (rôle, prénom, nom) sont maintenant dans le constructeur de UserEntity
@@ -46,7 +45,7 @@ class UpdateUserUseCase
             $existingUser->getEmail(), // L'email ne peut pas être modifié
             $hashedPassword,
             $existingUser->getCreatedAt(),
-            $updatedAt
+            $now
         );
         
         // Sauvegarder les modifications
