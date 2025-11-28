@@ -8,7 +8,7 @@ use App\Application\UseCases\User\CreateUserUseCase;
 use App\Application\dtos\user\CreateUserDto;
 use App\Application\dtos\user\UserReponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\ValueObjects\User\Email;
 use App\Domain\ValueObjects\User\Password;
 use App\Domain\ValueObjects\User\Role;
@@ -48,7 +48,7 @@ class CreateUserUseCaseTest extends TestCase
         $this->repositoryMock
             ->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function (UserEntity $user) {
+            ->willReturnCallback(function (User $user) {
                 return $user; // Retourner l'utilisateur tel qu'il a été créé
             });
         
@@ -92,7 +92,7 @@ class CreateUserUseCaseTest extends TestCase
         $this->repositoryMock
             ->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function (UserEntity $user) use (&$capturedUser) {
+            ->willReturnCallback(function (User $user) use (&$capturedUser) {
                 $capturedUser = $user;
                 return $user;
             });
@@ -102,7 +102,7 @@ class CreateUserUseCaseTest extends TestCase
         
         // Assert: Vérifier que l'utilisateur a été capturé
         $this->assertNotNull($capturedUser);
-        $this->assertInstanceOf(UserEntity::class, $capturedUser);
+        $this->assertInstanceOf(User::class, $capturedUser);
         
         // Type narrowing: garantir que $capturedUser n'est pas null pour le linter
         if ($capturedUser === null) {
@@ -125,15 +125,15 @@ class CreateUserUseCaseTest extends TestCase
         $createUserDto = new CreateUserDto('John', 'Doe', $email, $password, $role);
         
         // Arrange: Créer un utilisateur existant avec le même email
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             '123e4567-e89b-12d3-a456-426614174000',
             'user',
             'Existing',
             'User',
             'existing@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Configurer le mock pour retourner l'utilisateur existant

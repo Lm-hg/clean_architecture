@@ -475,6 +475,8 @@ class UserApiTest extends TestCase
     private function makeAuthRequest(string $method, string $action, array $data): array
     {
         try {
+            // Reset HTTP code to 200 for consistent test behaviour
+            http_response_code(200);
             $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
             $helper = new UserApiFunctionalTestHelper($this->pdo, $jwtSecretKey);
             $authController = $helper->createAuthController();

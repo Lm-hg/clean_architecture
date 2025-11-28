@@ -2,7 +2,7 @@
 
 namespace App\Domain\Entities;
 
-class User
+class UserEntity
 {
     # attributes
 
@@ -12,10 +12,10 @@ class User
     private string $name;
     private string $email;
     private string $password;
-    private \DateTime $createdAt;
-    private \DateTime $updatedAt;
+    private \DateTimeInterface $createdAt;
+    private \DateTimeInterface $updatedAt;
 
-    public function __construct(string $id, string $role, string $firstName, string $name, string $email, string $password, \DateTime $createdAt, \DateTime $updatedAt)
+    public function __construct(string $id, string $role, string $firstName, string $name, string $email, string $password, \DateTimeInterface|string $createdAt, \DateTimeInterface|string $updatedAt)
     {
         // Valider l'ID
         if (!$this->validateId($id)) {
@@ -53,8 +53,9 @@ class User
         $this->name = $name;
         $this->email = $email;
         $this->password = $password;
-        $this->createdAt = $createdAt;
-        $this->updatedAt = $updatedAt;
+        // Normalize date inputs to DateTimeImmutable
+        $this->createdAt = is_string($createdAt) ? new \DateTimeImmutable($createdAt) : $createdAt;
+        $this->updatedAt = is_string($updatedAt) ? new \DateTimeImmutable($updatedAt) : $updatedAt;
     }
 
     # business rules
@@ -123,12 +124,12 @@ class User
         return $this->role;
     }
     
-    public function getCreatedAt(): \DateTime
+    public function getCreatedAt(): \DateTimeInterface
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): \DateTime
+    public function getUpdatedAt(): \DateTimeInterface
     {
         return $this->updatedAt;
     }
@@ -161,13 +162,13 @@ class User
         $this->validateName($name);
         $this->firstName = $firstName;
         $this->name = $name;
-        $this->updatedAt = new \DateTime();
+        $this->updatedAt = new \DateTimeImmutable();
     }
 
     public function changePassword(string $newPasswordHash): void
     {
         $this->validatePasswordHash($newPasswordHash);
         $this->password = $newPasswordHash;
-        $this->updatedAt = new \DateTime();
+        $this->updatedAt = new \DateTimeImmutable();
     }
 }

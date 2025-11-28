@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 use App\Application\UseCases\User\DeleteUserUseCase;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 
 class DeleteUserUseCaseTest extends TestCase
 {
@@ -30,15 +30,15 @@ class DeleteUserUseCaseTest extends TestCase
         $userId = '123e4567-e89b-12d3-a456-426614174000';
         
         // Arrange: Créer un utilisateur existant
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
             'Doe',
             'test@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Configurer les mocks
@@ -85,15 +85,15 @@ class DeleteUserUseCaseTest extends TestCase
     {
         // Arrange
         $userId = '123e4567-e89b-12d3-a456-426614174000';
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
             'Doe',
             'test@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Configurer les mocks

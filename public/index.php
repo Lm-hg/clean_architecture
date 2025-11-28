@@ -315,86 +315,85 @@ try {
         exit;
     }
 
-    // API Reservation routes
-    if (preg_match('#^/api/reservations(/.*)?$#', $requestUri, $matches)) {
+    // API Abonnement routes (protected)
+    if (preg_match('#^/api/abonnements(/.*)?$#', $requestUri, $matches) || preg_match('#^/api/parkings/([^/]+)/abonnements$#', $requestUri, $pm)) {
         header('Content-Type: application/json');
 
-        // Initialize dependencies
+        // Authentication
+        $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+        $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+        $authMiddleware = new \App\Presenter\Http\Middleware\AuthenticationMiddleware($jwtService);
+        $authenticatedUser = $authMiddleware->authenticate();
+        if ($authenticatedUser === null) {
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            exit;
+        }
+
+        // Dependencies
         $pdo = require BASE_PATH . '/config/database.php';
-        
-        // Repository
-        $reservationRepository = new \App\Infrastructure\Persistence\Sql\ReservationRepository($pdo);
-        
-        // Use Cases
-        $createReservationUseCase = new \App\Application\UseCases\Reservation\CreateReservationUseCase($reservationRepository);
-        $getReservationUseCase = new \App\Application\UseCases\Reservation\GetReservationUseCase($reservationRepository);
-        $listReservationsUseCase = new \App\Application\UseCases\Reservation\ListReservationsForUserUseCase($reservationRepository);
-        $cancelReservationUseCase = new \App\Application\UseCases\Reservation\CancelReservationUseCase($reservationRepository);
-        
-        // Controller
-        $reservationController = new \App\Presenter\Http\Controllers\Api\ReservationController(
-            $createReservationUseCase,
-            $getReservationUseCase,
-            $listReservationsUseCase,
-            $cancelReservationUseCase
-        );
-        
+        $mongo = require BASE_PATH . '/config/mongodb.php';
+
+        $abonnementRepo = new \App\Infrastructure\Persistence\Sql\AbonnementRepository($pdo, $mongo, getenv('MONGO_DB') ?: 'parking_db');
+
+        // UseCases
+        $createUC = new \App\Application\UseCases\Abonnement\CreateAbonnementUseCase($abonnementRepo);
+        $getUC = new \App\Application\UseCases\Abonnement\GetAbonnementUseCase($abonnementRepo);
+        $listUC = new \App\Application\UseCases\Abonnement\ListAbonnementsForParkingUseCase($abonnementRepo);
+        $subscribeUC = new \App\Application\UseCases\Abonnement\SubscribeToAbonnementUseCase($abonnementRepo);
+        $validateUC = new \App\Application\UseCases\Abonnement\ValidateAbonnementUseCase($abonnementRepo);
+
+        $controller = new \App\Presenter\Http\Controllers\Api\AbonnementController($createUC, $getUC, $listUC, $subscribeUC, $validateUC);
+
         // Parse request body
         $requestData = [];
         if (in_array($requestMethod, ['POST', 'PUT'])) {
             $input = getRequestBody();
             $requestData = json_decode($input, true) ?? [];
         }
-        
-        // ID extraction
-        $resourceId = null;
-        if (isset($matches[1]) && $matches[1] !== '') {
-            $resourceId = trim($matches[1], '/');
+
+        // Routing
+        // POST /api/abonnements
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements$#', $requestUri)) {
+            $response = $controller->create($requestData);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
         }
 
-        // Route handling
-        switch ($requestMethod) {
-            case 'POST':
-                // POST /api/reservations
-                $response = $reservationController->create($requestData);
-                break;
-                
-            case 'GET':
-                if ($resourceId) {
-                    // GET /api/reservations/{id}
-                    $response = $reservationController->show($resourceId);
-                } else {
-                    // GET /api/reservations?user_id=...
-                    // Note: Usually we get user_id from auth token, but for simplicity here we read query param
-                    $userId = $_GET['user_id'] ?? null;
-                    if (!$userId) {
-                        http_response_code(400);
-                        $response = ['status' => 'error', 'message' => 'user_id query parameter required'];
-                    } else {
-                        $response = $reservationController->index($userId);
-                    }
-                }
-                break;
-                
-            case 'DELETE':
-                if ($resourceId) {
-                    // DELETE /api/reservations/{id}
-                    $response = $reservationController->cancel($resourceId);
-                } else {
-                    http_response_code(400);
-                    $response = ['status' => 'error', 'message' => 'Reservation ID required'];
-                }
-                break;
-                
-            default:
-                http_response_code(405);
-                $response = [
-                    'status' => 'error',
-                    'message' => 'Method not allowed'
-                ];
+        // GET /api/abonnements/{id}
+        if ($requestMethod === 'GET' && preg_match('#^/api/abonnements/([^/]+)$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->show($id);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
         }
-        
-        echo json_encode($response, JSON_PRETTY_PRINT);
+
+        // POST /api/abonnements/{id}/subscribe
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements/([^/]+)/subscribe$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->subscribe($id);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // POST /api/abonnements/{id}/validate
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements/([^/]+)/validate$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->validate($id, $requestData);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // GET /api/parkings/{parkingId}/abonnements
+        if ($requestMethod === 'GET' && preg_match('#^/api/parkings/([^/]+)/abonnements$#', $requestUri, $m)) {
+            $parkingId = $m[1];
+            $response = $controller->indexForParking($parkingId);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'Endpoint not found']);
         exit;
     }
 
