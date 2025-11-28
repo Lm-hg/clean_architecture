@@ -315,6 +315,88 @@ try {
         exit;
     }
 
+    // API Abonnement routes (protected)
+    if (preg_match('#^/api/abonnements(/.*)?$#', $requestUri, $matches) || preg_match('#^/api/parkings/([^/]+)/abonnements$#', $requestUri, $pm)) {
+        header('Content-Type: application/json');
+
+        // Authentication
+        $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+        $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+        $authMiddleware = new \App\Presenter\Http\Middleware\AuthenticationMiddleware($jwtService);
+        $authenticatedUser = $authMiddleware->authenticate();
+        if ($authenticatedUser === null) {
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            exit;
+        }
+
+        // Dependencies
+        $pdo = require BASE_PATH . '/config/database.php';
+        $mongo = require BASE_PATH . '/config/mongodb.php';
+
+        $abonnementRepo = new \App\Infrastructure\Persistence\Sql\AbonnementRepository($pdo, $mongo, getenv('MONGO_DB') ?: 'parking_db');
+
+        // UseCases
+        $createUC = new \App\Application\UseCases\Abonnement\CreateAbonnementUseCase($abonnementRepo);
+        $getUC = new \App\Application\UseCases\Abonnement\GetAbonnementUseCase($abonnementRepo);
+        $listUC = new \App\Application\UseCases\Abonnement\ListAbonnementsForParkingUseCase($abonnementRepo);
+        $subscribeUC = new \App\Application\UseCases\Abonnement\SubscribeToAbonnementUseCase($abonnementRepo);
+        $validateUC = new \App\Application\UseCases\Abonnement\ValidateAbonnementUseCase($abonnementRepo);
+
+        $controller = new \App\Presenter\Http\Controllers\Api\AbonnementController($createUC, $getUC, $listUC, $subscribeUC, $validateUC);
+
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST', 'PUT'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+
+        // Routing
+        // POST /api/abonnements
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements$#', $requestUri)) {
+            $response = $controller->create($requestData);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // GET /api/abonnements/{id}
+        if ($requestMethod === 'GET' && preg_match('#^/api/abonnements/([^/]+)$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->show($id);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // POST /api/abonnements/{id}/subscribe
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements/([^/]+)/subscribe$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->subscribe($id);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // POST /api/abonnements/{id}/validate
+        if ($requestMethod === 'POST' && preg_match('#^/api/abonnements/([^/]+)/validate$#', $requestUri, $m)) {
+            $id = $m[1];
+            $response = $controller->validate($id, $requestData);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        // GET /api/parkings/{parkingId}/abonnements
+        if ($requestMethod === 'GET' && preg_match('#^/api/parkings/([^/]+)/abonnements$#', $requestUri, $m)) {
+            $parkingId = $m[1];
+            $response = $controller->indexForParking($parkingId);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'Endpoint not found']);
+        exit;
+    }
+
     // API routes will be handled here
     // For now, return 404 for undefined routes
     header('Content-Type: application/json');
