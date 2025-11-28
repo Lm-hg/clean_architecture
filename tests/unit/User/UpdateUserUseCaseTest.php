@@ -8,9 +8,9 @@ use App\Application\UseCases\User\UpdateUserUseCase;
 use App\Application\dtos\user\UpdateUserDto;
 use App\Application\dtos\user\UserReponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\Entities\UserEntity;
-use App\Domain\ObjectValues\User\Password;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\Entities\User;
+use App\Domain\ValueObjects\User\Password;
+use App\Domain\ValueObjects\User\Role;
 
 class UpdateUserUseCaseTest extends TestCase
 {
@@ -34,15 +34,15 @@ class UpdateUserUseCaseTest extends TestCase
         $userId = '123e4567-e89b-12d3-a456-426614174000';
         
         // Arrange: Créer un utilisateur existant
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
             'Doe',
             'test@example.com',
             password_hash('oldpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Créer le DTO de mise à jour
@@ -51,15 +51,15 @@ class UpdateUserUseCaseTest extends TestCase
         $updateUserDto = new UpdateUserDto('Jane', 'Doe', $newPassword, $newRole);
         
         // Arrange: Créer l'utilisateur mis à jour qui sera retourné
-        $updatedUser = new UserEntity(
+        $updatedUser = new User(
             $userId,
             'admin',
             'Jane',
             'Doe',
             'test@example.com', // L'email reste le même
             password_hash('newpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00', // La date de création reste la même
-            '2024-01-02 10:00:00' // La date de mise à jour change
+            new \DateTime('2024-01-01 10:00:00'), // La date de création reste la même
+            new \DateTime('2024-01-02 10:00:00') // La date de mise à jour change
         );
         
         // Arrange: Configurer les mocks
@@ -112,15 +112,15 @@ class UpdateUserUseCaseTest extends TestCase
     {
         // Arrange
         $userId = '123e4567-e89b-12d3-a456-426614174000';
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
             'Doe',
             'test@example.com',
             password_hash('oldpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         $newPassword = new Password('newplainpassword123');
@@ -137,7 +137,7 @@ class UpdateUserUseCaseTest extends TestCase
         $this->repositoryMock
             ->expects($this->once())
             ->method('update')
-            ->willReturnCallback(function (UserEntity $user) use (&$capturedUser) {
+            ->willReturnCallback(function (User $user) use (&$capturedUser) {
                 $capturedUser = $user;
                 return $user;
             });

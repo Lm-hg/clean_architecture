@@ -2,7 +2,7 @@
 
 namespace App\Domain\Entities;
 
-class UserEntity
+class User
 {
     # attributes
 
@@ -12,10 +12,10 @@ class UserEntity
     private string $name;
     private string $email;
     private string $password;
-    private string $createdAt;
-    private string $updatedAt;
+    private \DateTime $createdAt;
+    private \DateTime $updatedAt;
 
-    public function __construct(string $id, string $role, string $firstName, string $name, string $email, string $password, string $createdAt, string $updatedAt)
+    public function __construct(string $id, string $role, string $firstName, string $name, string $email, string $password, \DateTime $createdAt, \DateTime $updatedAt)
     {
         // Valider l'ID
         if (!$this->validateId($id)) {
@@ -123,13 +123,51 @@ class UserEntity
         return $this->role;
     }
     
-    public function getCreatedAt(): string
+    public function getCreatedAt(): \DateTime
     {
         return $this->createdAt;
     }
 
-    public function getUpdatedAt(): string
+    public function getUpdatedAt(): \DateTime
     {
         return $this->updatedAt;
+    }
+
+    // Business methods
+
+    public function isOwner(): bool
+    {
+        return $this->role === 'ownerParking';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isRegularUser(): bool
+    {
+        return $this->role === 'user';
+    }
+
+    public function getFullName(): string
+    {
+        return $this->firstName . ' ' . $this->name;
+    }
+
+    public function updateProfile(string $firstName, string $name): void
+    {
+        $this->validateFirstName($firstName);
+        $this->validateName($name);
+        $this->firstName = $firstName;
+        $this->name = $name;
+        $this->updatedAt = new \DateTime();
+    }
+
+    public function changePassword(string $newPasswordHash): void
+    {
+        $this->validatePasswordHash($newPasswordHash);
+        $this->password = $newPasswordHash;
+        $this->updatedAt = new \DateTime();
     }
 }

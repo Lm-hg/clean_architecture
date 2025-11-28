@@ -3,7 +3,7 @@
 namespace Tests\Unit\Domain\Price;
 
 use PHPUnit\Framework\TestCase;
-use App\Domain\ObjectValues\Price\Price;
+use App\Domain\ValueObjects\Price\Price;
 
 class PriceTest extends TestCase
 {

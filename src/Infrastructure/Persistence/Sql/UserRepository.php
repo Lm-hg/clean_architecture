@@ -3,7 +3,7 @@
 namespace App\Infrastructure\Persistence\Sql;
 
 use PDO;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
 
 class UserRepository implements UserRepositoryInterface
@@ -15,7 +15,7 @@ class UserRepository implements UserRepositoryInterface
         $this->pdo = $pdo;
     }
 
-    public function findById(string $id): ?UserEntity
+    public function findById(string $id): ?User
     {
         $stmt = $this->pdo->prepare('
             SELECT id, role, first_name, name, email, password, created_at, updated_at 
@@ -32,7 +32,7 @@ class UserRepository implements UserRepositoryInterface
         return $this->mapRowToEntity($row);
     }
 
-    public function findByEmail(string $email): ?UserEntity
+    public function findByEmail(string $email): ?User
     {
         $stmt = $this->pdo->prepare('
             SELECT id, role, first_name, name, email, password, created_at, updated_at 
@@ -75,7 +75,7 @@ class UserRepository implements UserRepositoryInterface
         return array_map([$this, 'mapRowToEntity'], $rows);
     }
 
-    public function create(UserEntity $user): ?UserEntity
+    public function create(User $user): ?User
     {
         $stmt = $this->pdo->prepare('
             INSERT INTO users (id, role, first_name, name, email, password, created_at, updated_at)
@@ -89,8 +89,8 @@ class UserRepository implements UserRepositoryInterface
             ':name' => $user->getName(),
             ':email' => $user->getEmail(),
             ':password' => $user->getPassword(),
-            ':created_at' => $user->getCreatedAt(),
-            ':updated_at' => $user->getUpdatedAt(),
+            ':created_at' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
+            ':updated_at' => $user->getUpdatedAt()->format('Y-m-d H:i:s'),
         ]);
 
         if (!$success) {
@@ -100,7 +100,7 @@ class UserRepository implements UserRepositoryInterface
         return $user;
     }
 
-    public function update(UserEntity $user): ?UserEntity
+    public function update(User $user): ?User
     {
         $stmt = $this->pdo->prepare('
             UPDATE users 
@@ -114,7 +114,7 @@ class UserRepository implements UserRepositoryInterface
             ':first_name' => $user->getFirstName(),
             ':name' => $user->getName(),
             ':password' => $user->getPassword(),
-            ':updated_at' => $user->getUpdatedAt(),
+            ':updated_at' => $user->getUpdatedAt()->format('Y-m-d H:i:s'),
         ]);
 
         if (!$success) {
@@ -132,7 +132,7 @@ class UserRepository implements UserRepositoryInterface
         return $stmt->rowCount() > 0;
     }
 
-    public function save(UserEntity $user): ?UserEntity
+    public function save(User $user): ?User
     {
         // Vérifier si l'utilisateur existe déjà
         $existing = $this->findById($user->getId());
@@ -145,19 +145,19 @@ class UserRepository implements UserRepositoryInterface
     }
 
     /**
-     * Mappe une ligne de la base de données vers une UserEntity
+     * Mappe une ligne de la base de données vers une User
      */
-    private function mapRowToEntity(array $row): UserEntity
+    private function mapRowToEntity(array $row): User
     {
-        return new UserEntity(
+        return new User(
             $row['id'],
             $row['role'],
             $row['first_name'],
             $row['name'],
             $row['email'],
             $row['password'],
-            $row['created_at'],
-            $row['updated_at']
+            new \DateTime($row['created_at']),
+            new \DateTime($row['updated_at'])
         );
     }
 }

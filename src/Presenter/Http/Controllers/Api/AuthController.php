@@ -6,9 +6,9 @@ use App\Application\UseCases\Auth\LoginUserUseCase;
 use App\Application\UseCases\User\CreateUserUseCase;
 use App\Application\dtos\auth\LoginDto;
 use App\Application\dtos\user\CreateUserDto;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Password;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Password;
+use App\Domain\ValueObjects\User\Role;
 
 class AuthController
 {

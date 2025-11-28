@@ -4,11 +4,11 @@ namespace App\Application\UseCases\User;
 
 use App\Application\dtos\user\UpdateUserDto;
 use App\Application\dtos\user\UserReponseDto;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\ObjectValues\User\IdUser;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\IdUser;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Role;
 use DateTime;
 
 class UpdateUserUseCase
@@ -32,13 +32,12 @@ class UpdateUserUseCase
         // Hasher le nouveau mot de passe s'il est fourni
         $hashedPassword = password_hash($updateUserDto->password->getPlainPassword(), PASSWORD_DEFAULT);
         
-        // Créer les dates
+        // Créer la date de mise à jour
         $now = new DateTime();
-        $updatedAt = $now->format('Y-m-d H:i:s');
         
         // Créer l'entité User mise à jour (on garde l'email et la date de création originaux)
-        // Les validations (rôle, prénom, nom) sont maintenant dans le constructeur de UserEntity
-        $updatedUser = new UserEntity(
+        // Les validations (rôle, prénom, nom) sont maintenant dans le constructeur de User
+        $updatedUser = new User(
             $existingUser->getId(),
             $updateUserDto->role->getRole(),
             $updateUserDto->firstName,
@@ -46,7 +45,7 @@ class UpdateUserUseCase
             $existingUser->getEmail(), // L'email ne peut pas être modifié
             $hashedPassword,
             $existingUser->getCreatedAt(),
-            $updatedAt
+            $now
         );
         
         // Sauvegarder les modifications

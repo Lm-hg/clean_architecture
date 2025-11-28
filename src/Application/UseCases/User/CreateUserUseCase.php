@@ -4,11 +4,11 @@ namespace App\Application\UseCases\User;
 
 use App\Application\dtos\user\CreateUserDto;
 use App\Application\dtos\user\UserReponseDto;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\ObjectValues\User\IdUser;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\IdUser;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Role;
 use DateTime;
 
 class CreateUserUseCase
@@ -33,21 +33,20 @@ class CreateUserUseCase
         // Hasher le mot de passe avant de le stocker
         $hashedPassword = password_hash($createUserDto->password->getPlainPassword(), PASSWORD_DEFAULT);
         
-        // Créer les dates au format string
+        // Créer les dates au format DateTime
         $now = new DateTime();
-        $dateString = $now->format('Y-m-d H:i:s');
         
         // Créer l'entité User avec l'UUID généré
-        // Les validations (rôle, prénom, nom, email) sont maintenant dans le constructeur de UserEntity
-        $user = new UserEntity(
+        // Les validations (rôle, prénom, nom, email) sont maintenant dans le constructeur de User
+        $user = new User(
             $userId,
             $createUserDto->role->getRole(),
             $createUserDto->firstName,
             $createUserDto->name,
             $createUserDto->email->getEmail(),
             $hashedPassword,
-            $dateString,
-            $dateString
+            $now,
+            clone $now
         );
         
         // Sauvegarder l'utilisateur

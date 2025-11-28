@@ -6,9 +6,9 @@ use App\Application\dtos\auth\LoginDto;
 use App\Application\dtos\auth\LoginResponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
 use App\Domain\Services\JwtServiceInterface;
-use App\Domain\ObjectValues\User\IdUser;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\IdUser;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Role;
 
 class LoginUserUseCase
 {
