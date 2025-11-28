@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, develop, feat-implement-abonnement-module-structure-module ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, feat-implement-abonnement-module-structure-module ]
 
 jobs:
   php-lint-and-test:
