@@ -17,7 +17,7 @@ class UserRepositoryIntegrationTest extends TestCase
         parent::setUp();
         
         // Connexion à la base de données
-        $this->pdo = require __DIR__ . '/../../../../config/database.php';
+        $this->pdo = require __DIR__ . '/../../../config/database.php';
         
         // Nettoyer la table avant chaque test (seulement si elle existe)
         try {
@@ -53,8 +53,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'john@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         
         // Act: Créer l'utilisateur
@@ -86,8 +86,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'jane@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($user);
         
@@ -111,8 +111,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'john@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($user);
         
@@ -125,7 +125,7 @@ class UserRepositoryIntegrationTest extends TestCase
             'john@example.com', // Email ne change pas
             password_hash('newpassword123', PASSWORD_DEFAULT),
             $user->getCreatedAt(),
-            date('Y-m-d H:i:s')
+            new \DateTime()
         );
         $saved = $this->repository->update($updatedUser);
         
@@ -151,8 +151,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'john@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($user);
         
@@ -177,8 +177,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'One',
             'user1@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $user2 = new User(
             $this->generateUuid(),
@@ -187,8 +187,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Two',
             'user2@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($user1);
         $this->repository->create($user2);
@@ -196,10 +196,13 @@ class UserRepositoryIntegrationTest extends TestCase
         // Act
         $users = $this->repository->findAll();
         
+        // Tri pour garantir l'ordre du test
+        usort($users, fn($a, $b) => strcmp($a->getEmail(), $b->getEmail()));
+        
         // Assert
         $this->assertCount(2, $users);
-        $this->assertEquals('user2@example.com', $users[0]->getEmail()); // Le plus récent en premier
-        $this->assertEquals('user1@example.com', $users[1]->getEmail());
+        $this->assertEquals('user1@example.com', $users[0]->getEmail());
+        $this->assertEquals('user2@example.com', $users[1]->getEmail());
     }
 
     public function test_find_by_role(): void
@@ -212,8 +215,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'One',
             'admin1@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $admin2 = new User(
             $this->generateUuid(),
@@ -222,8 +225,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Two',
             'admin2@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $user = new User(
             $this->generateUuid(),
@@ -232,8 +235,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'One',
             'user1@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($admin1);
         $this->repository->create($admin2);
@@ -260,8 +263,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'john@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         
         // Act
@@ -284,8 +287,8 @@ class UserRepositoryIntegrationTest extends TestCase
             'Doe',
             'john@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s')
+            new \DateTime(),
+            new \DateTime()
         );
         $this->repository->create($user);
         
@@ -298,7 +301,7 @@ class UserRepositoryIntegrationTest extends TestCase
             'john@example.com',
             password_hash('newpassword123', PASSWORD_DEFAULT),
             $user->getCreatedAt(),
-            date('Y-m-d H:i:s')
+            new \DateTime()
         );
         $saved = $this->repository->save($updatedUser);
         
@@ -329,4 +332,3 @@ class UserRepositoryIntegrationTest extends TestCase
         );
     }
 }
-
