@@ -2,7 +2,7 @@
 
 namespace App\Domain\Entities;
 
-use App\Domain\ValueObjects\Price\Price;
+use App\Domain\ValueObjects\Pricing\Price;
 use App\Domain\ValueObjects\TimeSlot;
 
 class Abonnement
@@ -47,6 +47,8 @@ class Abonnement
         $this->validateUserId($userId);
         $this->validateParkingId($parkingId);
         $this->validateType($type);
+        // Set type early so validateTimeSlots can allow empty for TYPE_TOTAL
+        $this->type = $type;
         $this->validateTimeSlots($timeSlots);
         $this->validateDateRange($startDate, $endDate);
 
@@ -88,7 +90,8 @@ class Abonnement
 
     private function validateTimeSlots(array $timeSlots): void
     {
-        if (empty($timeSlots)) {
+        // For TYPE_TOTAL, no time slots are required (full access)
+        if (empty($timeSlots) && ($this->type ?? null) !== self::TYPE_TOTAL) {
             throw new \InvalidArgumentException("At least one time slot is required");
         }
         foreach ($timeSlots as $slot) {
@@ -236,6 +239,27 @@ class Abonnement
     {
         foreach ($this->timeSlots as $slot) {
             if ($slot->isActiveAt($dayOfWeek, $timeOfDay)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Vérifie si l'abonnement couvre un DateTime donné (en tenant compte des timeSlots hebdomadaires)
+     */
+    public function coversDateTime(\DateTimeInterface $dateTime): bool
+    {
+        if ($this->isTotalAccess()) {
+            return true;
+        }
+
+        foreach ($this->timeSlots as $slot) {
+            if (!($slot instanceof \App\Domain\ValueObjects\TimeSlot)) {
+                continue;
+            }
+            if ($slot->coversDateTime($dateTime)) {
                 return true;
             }
         }
