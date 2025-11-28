@@ -12,7 +12,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 // Define base path
-define('BASE_PATH', dirname(__DIR__));
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', dirname(__DIR__));
+}
 
 // Load Composer autoloader
 require_once BASE_PATH . '/vendor/autoload.php';
@@ -23,15 +25,17 @@ require_once BASE_PATH . '/vendor/autoload.php';
 /**
  * Helper function to get request body (supports testing via $GLOBALS)
  */
-function getRequestBody(): string
-{
-    // Support for testing: if TEST_REQUEST_BODY is set, use it
-    if (isset($GLOBALS['TEST_REQUEST_BODY'])) {
-        return $GLOBALS['TEST_REQUEST_BODY'];
+if (!function_exists('getRequestBody')) {
+    function getRequestBody(): string
+    {
+        // Support for testing: if TEST_REQUEST_BODY is set, use it
+        if (isset($GLOBALS['TEST_REQUEST_BODY'])) {
+            return $GLOBALS['TEST_REQUEST_BODY'];
+        }
+        
+        // Otherwise, read from php://input
+        return file_get_contents('php://input') ?: '';
     }
-    
-    // Otherwise, read from php://input
-    return file_get_contents('php://input') ?: '';
 }
 
 // CORS Headers (if needed for API)
@@ -300,6 +304,88 @@ try {
                         'status' => 'error',
                         'message' => 'User ID is required for deletion'
                     ];
+                }
+                break;
+                
+            default:
+                http_response_code(405);
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Method not allowed'
+                ];
+        }
+        
+        echo json_encode($response, JSON_PRETTY_PRINT);
+        exit;
+    }
+
+    // API Reservation routes
+    if (preg_match('#^/api/reservations(/.*)?$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+
+        // Initialize dependencies
+        $pdo = require BASE_PATH . '/config/database.php';
+        
+        // Repository
+        $reservationRepository = new \App\Infrastructure\Persistence\Sql\ReservationRepository($pdo);
+        
+        // Use Cases
+        $createReservationUseCase = new \App\Application\UseCases\Reservation\CreateReservationUseCase($reservationRepository);
+        $getReservationUseCase = new \App\Application\UseCases\Reservation\GetReservationUseCase($reservationRepository);
+        $listReservationsUseCase = new \App\Application\UseCases\Reservation\ListReservationsForUserUseCase($reservationRepository);
+        $cancelReservationUseCase = new \App\Application\UseCases\Reservation\CancelReservationUseCase($reservationRepository);
+        
+        // Controller
+        $reservationController = new \App\Presenter\Http\Controllers\Api\ReservationController(
+            $createReservationUseCase,
+            $getReservationUseCase,
+            $listReservationsUseCase,
+            $cancelReservationUseCase
+        );
+        
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST', 'PUT'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+        
+        // ID extraction
+        $resourceId = null;
+        if (isset($matches[1]) && $matches[1] !== '') {
+            $resourceId = trim($matches[1], '/');
+        }
+
+        // Route handling
+        switch ($requestMethod) {
+            case 'POST':
+                // POST /api/reservations
+                $response = $reservationController->create($requestData);
+                break;
+                
+            case 'GET':
+                if ($resourceId) {
+                    // GET /api/reservations/{id}
+                    $response = $reservationController->show($resourceId);
+                } else {
+                    // GET /api/reservations?user_id=...
+                    $userId = $_GET['user_id'] ?? null;
+                    if (!$userId) {
+                        http_response_code(400);
+                        $response = ['status' => 'error', 'message' => 'user_id query parameter required'];
+                    } else {
+                        $response = $reservationController->index($userId);
+                    }
+                }
+                break;
+                
+            case 'DELETE':
+                if ($resourceId) {
+                    // DELETE /api/reservations/{id}
+                    $response = $reservationController->cancel($resourceId);
+                } else {
+                    http_response_code(400);
+                    $response = ['status' => 'error', 'message' => 'Reservation ID required'];
                 }
                 break;
                 
