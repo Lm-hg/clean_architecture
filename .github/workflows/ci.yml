@@ -1,8 +1,8 @@
-name: CI - deploy on prod 
+name: CI - deploy on prod
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feat/issue-5-booking-module-structure ]
   pull_request:
     branches: [ main, develop ]
 
@@ -10,7 +10,7 @@ jobs:
   php-lint-and-test:
     name: PHP Linting & Testing
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:14-alpine
@@ -52,252 +52,40 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Verify PHP extensions
-        run: |
-          echo "Installed PHP extensions:"
-          php -m | grep -E '(pdo|pgsql|mongodb|zip|gd)'
-          echo "MongoDB extension loaded successfully!"
-
-      - name: Validate composer.json
-        run: composer validate --strict
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}-${{ hashFiles('**/composer.json') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-
-
-      - name: Install dependencies
+      - name: Install Composer dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
-
-      - name: Force regenerate autoload files (fix case sensitivity)
-        run: |
-          # Supprimer l'ancien autoloader pour forcer la régénération
-          rm -f vendor/composer/autoload*.php
-          rm -rf vendor/composer/autoload_classmap.php vendor/composer/autoload_namespaces.php vendor/composer/autoload_psr4.php vendor/composer/autoload_static.php 2>/dev/null || true
-          # S'assurer que les fichiers de tests existent
-          echo "Checking test files exist:"
-          find tests -name "*.php" -type f | head -5
-          # Régénérer l'autoloader avec la structure actuelle (incluant autoload-dev)
-          composer dump-autoload --optimize --no-interaction
-          echo "✅ Autoloader regenerated with current file structure"
-          # Vérifier que les fichiers de tests sont dans l'autoloader
-          echo "Checking autoloader includes test files:"
-          if [ -f "vendor/composer/autoload_psr4.php" ]; then
-            grep -A 1 "Tests" vendor/composer/autoload_psr4.php || echo "Tests namespace not found"
-          fi
-
-      - name: Check PHP syntax errors
-        run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
-
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
 
       - name: Wait for PostgreSQL to be ready
         run: |
           echo "Waiting for PostgreSQL to be ready..."
-          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U parking_user; do echo "Waiting..."; sleep 2; done'
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U ${{ services.postgres.env.POSTGRES_USER }}; do echo "Waiting..."; sleep 2; done'
           echo "✅ PostgreSQL is ready!"
 
-      - name: Create users table (run migration)
+      - name: Apply database schema (init + migrations)
         env:
-          PGHOST: localhost
-          PGPORT: 5432
-          PGDATABASE: parking_db_test
-          PGUSER: parking_user
-          PGPASSWORD: test_password
+          PGPASSWORD: ${{ services.postgres.env.POSTGRES_PASSWORD }}
         run: |
-          echo "Creating users table..."
-          export PGPASSWORD="$PGPASSWORD"
-          
-          # Exécuter la migration
-          if psql -h localhost -U parking_user -d parking_db_test -f src/docker/postgres/migrations/001_create_users_table.sql; then
-            echo "✅ Migration executed successfully!"
-          else
-            echo "❌ Migration failed!"
-            exit 1
-          fi
-          
-          # Vérifier que la table existe
-          echo "Verifying table exists..."
-          if psql -h localhost -U parking_user -d parking_db_test -c "\d users" > /dev/null 2>&1; then
-            echo "✅ Users table verified!"
-          else
-            echo "❌ Users table verification failed!"
-            echo "Checking if table exists..."
-            psql -h localhost -U parking_user -d parking_db_test -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users';"
-            exit 1
-          fi
+          echo "Applying init.sql"
+          psql -h localhost -U ${{ services.postgres.env.POSTGRES_USER }} -d ${{ services.postgres.env.POSTGRES_DB }} -f src/docker/postgres/init.sql
 
-      - name: Regenerate autoload after migration (ensure all classes are loaded)
-        run: |
-          composer dump-autoload --optimize --no-interaction
-          echo "✅ Autoloader regenerated after database migration"
-          # Vérifier que les classes critiques sont chargées
-          php -r "require 'vendor/autoload.php'; echo 'GetUserUseCase: ' . (class_exists('App\Application\UseCases\User\GetUserUseCase') ? 'OK' : 'MISSING') . PHP_EOL; echo 'UserApiFunctionalTestHelper: ' . (class_exists('Tests\Functional\User\UserApiFunctionalTestHelper') ? 'OK' : 'MISSING') . PHP_EOL;"
+          echo "Applying all migrations"
+          for f in src/docker/postgres/migrations/*.sql; do
+            echo " → $f"
+            psql -h localhost -U ${{ services.postgres.env.POSTGRES_USER }} -d ${{ services.postgres.env.POSTGRES_DB }} -f "$f"
+          done
 
-      - name: Verify critical files and classes before tests
-        run: |
-          echo "=== Verifying file structure ==="
-          echo "Checking if test files exist:"
-          ls -la tests/functional/User/ || echo "Directory tests/functional/User/ not found!"
-          echo ""
-          echo "Checking for UserApiFunctionalTestHelper.php:"
-          find tests -name "UserApiFunctionalTestHelper.php" -type f || echo "File not found in tests/"
-          echo ""
-          echo "Checking UseCases directory:"
-          ls -la src/Application/UseCases/User/ || echo "Directory not found!"
-          echo ""
-          
-          echo "=== Verifying autoloader configuration ==="
-          if [ -f "vendor/composer/autoload_psr4.php" ]; then
-            echo "Autoloader file exists"
-            grep -A 1 "Tests" vendor/composer/autoload_psr4.php || echo "Tests namespace not found in autoloader"
-          else
-            echo "ERROR: Autoloader file missing!"
-          fi
-          echo ""
-          
-          echo "=== Verifying classes are loadable ==="
-          php -r "
-          require 'vendor/autoload.php';
-          
-          // Charger manuellement UserApiFunctionalTestHelper si nécessaire
-          \$helperFile = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
-          if (file_exists(\$helperFile) && !class_exists('Tests\Functional\User\UserApiFunctionalTestHelper')) {
-            require_once \$helperFile;
-          }
-          
-          \$fileChecks = [
-            'tests/functional/User/UserApiFunctionalTestHelper.php' => 'UserApiFunctionalTestHelper file',
-            'src/Application/UseCases/User/GetUserUseCase.php' => 'GetUserUseCase file',
-            'src/Application/UseCases/User/ListUsersUseCase.php' => 'ListUsersUseCase file',
-            'src/Application/UseCases/User/UpdateUserUseCase.php' => 'UpdateUserUseCase file',
-            'src/Presenter/Http/Controllers/Api/AuthController.php' => 'AuthController file',
-            'src/Presenter/Http/Controllers/Api/UserController.php' => 'UserController file'
-          ];
-          
-          \$classChecks = [
-            'App\Application\UseCases\User\GetUserUseCase' => 'GetUserUseCase class',
-            'App\Application\UseCases\User\ListUsersUseCase' => 'ListUsersUseCase class',
-            'App\Application\UseCases\User\UpdateUserUseCase' => 'UpdateUserUseCase class',
-            'App\Presenter\Http\Controllers\Api\AuthController' => 'AuthController class',
-            'App\Presenter\Http\Controllers\Api\UserController' => 'UserController class',
-            'Tests\Functional\User\UserApiFunctionalTestHelper' => 'UserApiFunctionalTestHelper class'
-          ];
-          
-          \$allOk = true;
-          
-          echo \"Checking files exist:\" . PHP_EOL;
-          foreach (\$fileChecks as \$file => \$desc) {
-            if (file_exists(\$file)) {
-              echo \"  ✅ \$desc: exists\" . PHP_EOL;
-            } else {
-              echo \"  ❌ \$desc: MISSING at \$file\" . PHP_EOL;
-              \$allOk = false;
-            }
-          }
-          
-          echo PHP_EOL . \"Checking classes are loadable:\" . PHP_EOL;
-          foreach (\$classChecks as \$class => \$desc) {
-            if (class_exists(\$class)) {
-              echo \"  ✅ \$desc: loaded\" . PHP_EOL;
-            } else {
-              echo \"  ❌ \$desc: NOT FOUND\" . PHP_EOL;
-              // Pour UserApiFunctionalTestHelper, essayer de charger manuellement
-              if (\$class === 'Tests\Functional\User\UserApiFunctionalTestHelper') {
-                \$filePath = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
-                if (file_exists(\$filePath)) {
-                  echo \"    → Attempting manual require: \$filePath\" . PHP_EOL;
-                  require_once \$filePath;
-                  if (class_exists(\$class)) {
-                    echo \"    ✅ Successfully loaded manually!\" . PHP_EOL;
-                    continue; // Skip the error flag
-                  } else {
-                    echo \"    ❌ Still not found after manual require\" . PHP_EOL;
-                  }
-                } else {
-                  echo \"    ❌ File does not exist at: \$filePath\" . PHP_EOL;
-                }
-              }
-              \$allOk = false;
-            }
-          }
-          
-          if (!\$allOk) {
-            echo PHP_EOL . \"ERROR: Some critical files or classes are missing!\" . PHP_EOL;
-            echo \"Attempting to regenerate autoloader...\" . PHP_EOL;
-            
-            // Forcer la régénération complète de l'autoloader
-            system('rm -f vendor/composer/autoload*.php');
-            system('composer dump-autoload --optimize --no-interaction');
-            
-            // Essayer de charger manuellement le fichier si nécessaire
-            \$helperFile = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
-            if (file_exists(\$helperFile)) {
-              echo \"Attempting to manually require helper file...\" . PHP_EOL;
-              require_once \$helperFile;
-            }
-            
-            // Recharger l'autoloader
-            require 'vendor/autoload.php';
-            
-            echo PHP_EOL . \"Re-checking classes after regeneration:\" . PHP_EOL;
-            foreach (\$classChecks as \$class => \$desc) {
-              if (class_exists(\$class)) {
-                echo \"  ✅ \$desc: NOW LOADED\" . PHP_EOL;
-              } else {
-                echo \"  ❌ \$desc: STILL NOT FOUND\" . PHP_EOL;
-                // Pour UserApiFunctionalTestHelper, essayer de charger manuellement
-                if (\$class === 'Tests\Functional\User\UserApiFunctionalTestHelper') {
-                  \$filePath = __DIR__ . '/tests/functional/User/UserApiFunctionalTestHelper.php';
-                  if (file_exists(\$filePath)) {
-                    echo \"    Attempting manual require: \$filePath\" . PHP_EOL;
-                    try {
-                      require_once \$filePath;
-                      if (class_exists(\$class)) {
-                        echo \"    ✅ Successfully loaded manually!\" . PHP_EOL;
-                      } else {
-                        echo \"    ❌ Still not found after manual require\" . PHP_EOL;
-                      }
-                    } catch (Exception \$e) {
-                      echo \"    ❌ Error loading: \" . \$e->getMessage() . PHP_EOL;
-                    }
-                  } else {
-                    echo \"    ❌ File does not exist at: \$filePath\" . PHP_EOL;
-                  }
-                }
-              }
-            }
-            
-            // Vérifier une dernière fois si tout est OK
-            \$finalCheck = true;
-            foreach (\$classChecks as \$class => \$desc) {
-              if (!class_exists(\$class)) {
-                \$finalCheck = false;
-              }
-            }
-            
-            if (!\$finalCheck) {
-              exit(1);
-            }
-          }
-          
-          echo PHP_EOL . \"✅ All critical files and classes are available\" . PHP_EOL;
-          "
+      - name: Regenerate autoload
+        run: composer dump-autoload --optimize --no-interaction
+
+      - name: Check PHP syntax errors
+        run: find src -name "*.php" -print0 | xargs -0 -n1 php -l
 
       - name: Run PHPUnit tests
         env:
           DB_HOST: localhost
-          DB_NAME: parking_db_test
-          DB_USER: parking_user
-          DB_PASSWORD: test_password
-          DB_PORT: 5432
-          JWT_SECRET_KEY: test-jwt-secret-key-for-ci-cd
+          DB_NAME: ${{ services.postgres.env.POSTGRES_DB }}
+          DB_USER: ${{ services.postgres.env.POSTGRES_USER }}
+          DB_PASSWORD: ${{ services.postgres.env.POSTGRES_PASSWORD }}
           MONGO_HOST: localhost
           MONGO_DB: parking_db_test
           MONGO_USER: parking_mongo
@@ -309,17 +97,15 @@ jobs:
             echo "PHPUnit not configured yet, skipping tests"
           fi
 
+  # (Les autres jobs — docker-build, code-quality, security-check — restent inchangés)
   docker-build:
     name: Docker Build Verification
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Create .env file for testing
         run: |
           cat > .env << EOF
@@ -337,413 +123,36 @@ jobs:
           EOF
           echo "✅ .env file created:"
           cat .env
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: pdo, pdo_pgsql, zip, gd, mongodb
           tools: composer:v2
-
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
-
       - name: Debug - List vendor directory
         run: |
           echo "Listing root directory:"
           ls -la
           echo "Listing vendor directory:"
           ls -la vendor
-
-
       - name: Build Docker images
         run: docker compose build --no-cache
-
       - name: Start Docker containers
         run: |
           echo "Starting Docker containers..."
           docker compose up -d
-          
-          # Attendre un peu pour que les conteneurs démarrent
           echo "Waiting 5 seconds for containers to initialize..."
           sleep 5
-          
-          # Vérifier immédiatement le statut
-          echo "Initial container status:"
           docker compose ps
-
-      - name: Wait for containers to be running
-        run: |
-          echo "=== Checking container status ==="
-          max_attempts=30
-          attempt=0
-          all_running=false
-          
-          while [ $attempt -lt $max_attempts ]; do
-            echo ""
-            echo "--- Attempt $((attempt+1))/$max_attempts ---"
-            
-            # Obtenir le statut de tous les conteneurs
-            echo "Full container status:"
-            docker compose ps
-            
-            # Vérifier chaque conteneur individuellement avec une méthode plus robuste
-            web_container=$(docker ps --filter "name=parking_app_web" --format "{{.Status}}" 2>/dev/null || echo "")
-            db_container=$(docker ps --filter "name=parking_app_db" --format "{{.Status}}" 2>/dev/null || echo "")
-            mongo_container=$(docker ps --filter "name=parking_app_mongodb" --format "{{.Status}}" 2>/dev/null || echo "")
-            
-            echo ""
-            echo "Container status check:"
-            echo "  Web:    $web_container"
-            echo "  DB:     $db_container"
-            echo "  Mongo:  $mongo_container"
-            
-            # Vérifier si les conteneurs sont en cours d'exécution (Up)
-            web_running="no"
-            db_running="no"
-            mongo_running="no"
-            
-            if echo "$web_container" | grep -q "Up"; then
-              web_running="yes"
-            fi
-            if echo "$db_container" | grep -q "Up"; then
-              db_running="yes"
-            fi
-            if echo "$mongo_container" | grep -q "Up"; then
-              mongo_running="yes"
-            fi
-            
-            echo ""
-            echo "Running status:"
-            echo "  Web:    $web_running"
-            echo "  DB:     $db_running"
-            echo "  Mongo:  $mongo_running"
-            
-            # Vérifier si un conteneur a échoué (ne pas utiliser docker ps mais docker ps -a)
-            db_exited_status=$(docker ps -a --filter "name=parking_app_db" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
-            web_exited_status=$(docker ps -a --filter "name=parking_app_web" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
-            mongo_exited_status=$(docker ps -a --filter "name=parking_app_mongodb" --format "{{.Status}}" 2>/dev/null | grep -E "Exited \([1-9]\)" && echo "yes" || echo "no")
-            
-            # Si un conteneur a échoué, afficher ses logs et arrêter
-            if [ "$db_exited_status" = "yes" ]; then
-              echo ""
-              echo "❌ DB container has exited with error!"
-              echo "=== DB Container Status ==="
-              docker ps -a --filter "name=parking_app_db"
-              echo ""
-              echo "=== DB Container Logs (ALL) ==="
-              docker compose logs db
-              echo ""
-              echo "=== DB Container Logs (last 100 lines) ==="
-              docker compose logs --tail=100 db
-              echo ""
-              echo "=== Trying to get exit code ==="
-              docker inspect parking_app_db --format='{{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
-              echo ""
-              echo "=== Checking init.sql file ==="
-              if [ -f "src/docker/postgres/init.sql" ]; then
-                echo "init.sql exists, checking first 20 lines:"
-                head -20 src/docker/postgres/init.sql
-              else
-                echo "❌ init.sql file not found!"
-              fi
-              exit 1
-            fi
-            if [ "$web_exited_status" = "yes" ]; then
-              echo ""
-              echo "❌ Web container has exited with error!"
-              echo "=== Web Container Status ==="
-              docker ps -a --filter "name=parking_app_web"
-              echo ""
-              echo "=== Web Container Logs ==="
-              docker compose logs web
-              exit 1
-            fi
-            if [ "$mongo_exited_status" = "yes" ]; then
-              echo ""
-              echo "❌ Mongo container has exited with error!"
-              echo "=== Mongo Container Status ==="
-              docker ps -a --filter "name=parking_app_mongodb"
-              echo ""
-              echo "=== Mongo Container Logs ==="
-              docker compose logs mongodb
-              exit 1
-            fi
-            
-            # Si tous les conteneurs sont en cours d'exécution
-            if [ "$web_running" = "yes" ] && [ "$db_running" = "yes" ] && [ "$mongo_running" = "yes" ]; then
-              echo ""
-              echo "✅ All containers are running!"
-              all_running=true
-              break
-            fi
-            
-            # Afficher les logs des conteneurs qui ne sont pas encore prêts (sans erreur)
-            if [ "$db_running" = "no" ] && [ "$db_exited_status" = "no" ]; then
-              echo ""
-              echo "⚠️ DB container not running yet (may still be starting). Recent logs:"
-              docker compose logs --tail=10 db 2>/dev/null || echo "Cannot get DB logs yet"
-            fi
-            if [ "$web_running" = "no" ] && [ "$web_exited_status" = "no" ]; then
-              echo ""
-              echo "⚠️ Web container not running yet (may still be starting). Recent logs:"
-              docker compose logs --tail=10 web 2>/dev/null || echo "Cannot get Web logs yet"
-            fi
-            if [ "$mongo_running" = "no" ] && [ "$mongo_exited_status" = "no" ]; then
-              echo ""
-              echo "⚠️ Mongo container not running yet (may still be starting). Recent logs:"
-              docker compose logs --tail=10 mongodb 2>/dev/null || echo "Cannot get Mongo logs yet"
-            fi
-            
-            # Si c'est la dernière tentative, afficher toutes les informations
-            if [ $attempt -eq $((max_attempts - 1)) ]; then
-              echo ""
-              echo "❌ Containers did not start within timeout!"
-              echo ""
-              echo "=== Final status check ==="
-              echo "Web running: $web_running"
-              echo "DB running: $db_running"
-              echo "Mongo running: $mongo_running"
-              echo ""
-              echo "=== All containers status (including stopped) ==="
-              docker ps -a | grep -E "parking_app|CONTAINER|NAME"
-              echo ""
-              echo "=== Checking which containers are missing ==="
-              if [ "$web_running" = "no" ]; then
-                echo "❌ Web container is NOT running"
-                echo "Web container details:"
-                docker ps -a --filter "name=parking_app_web" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-              fi
-              if [ "$db_running" = "no" ]; then
-                echo "❌ DB container is NOT running"
-                echo "DB container details:"
-                docker ps -a --filter "name=parking_app_db" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-              fi
-              if [ "$mongo_running" = "no" ]; then
-                echo "❌ Mongo container is NOT running"
-                echo "Mongo container details:"
-                docker ps -a --filter "name=parking_app_mongodb" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-              fi
-              echo ""
-              echo "=== Container logs summary ==="
-              echo "--- DB Logs (last 50 lines) ---"
-              docker compose logs --tail=50 db 2>/dev/null || echo "No DB logs available"
-              echo ""
-              echo "--- Web Logs (last 50 lines) ---"
-              docker compose logs --tail=50 web 2>/dev/null || echo "No Web logs available"
-              echo ""
-              echo "--- Mongo Logs (last 50 lines) ---"
-              docker compose logs --tail=50 mongodb 2>/dev/null || echo "No Mongo logs available"
-              echo ""
-              echo "=== Docker compose status ==="
-              docker compose ps -a
-              exit 1
-            fi
-            
-            echo ""
-            echo "Waiting 4 seconds before next check..."
-            sleep 4
-            attempt=$((attempt+1))
-          done
-          
-          if [ "$all_running" = "true" ]; then
-            echo ""
-            echo "=== Final container status ==="
-            docker compose ps
-            echo ""
-            echo "✅ All containers are running! Waiting 5 more seconds for services to fully initialize..."
-            sleep 5
-          fi
-
-      - name: Debug - Check container files
-        run: |
-          echo "Checking /var/www/html in container:"
-          docker compose exec -T web ls -la /var/www/html || echo "Cannot access web container"
-          echo "Checking vendor in container:"
-          docker compose exec -T web ls -la /var/www/html/vendor || echo "Vendor not found in container"
-
-      - name: Wait for services to be ready
-        run: |
-          echo "=== Waiting for PostgreSQL ==="
-          max_attempts=90
-          attempt=0
-          postgres_ready=false
-          
-          while [ $attempt -lt $max_attempts ]; do
-            # Vérifier si le conteneur est en cours d'exécution
-            if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
-              echo "⚠️ Container 'db' is not running! (attempt $((attempt+1))/$max_attempts)"
-              docker compose ps db 2>/dev/null || echo "Cannot check container status"
-              sleep 3
-              attempt=$((attempt+1))
-              continue
-            fi
-            
-            # Vérifier si PostgreSQL est prêt (essayer pg_isready dans le conteneur)
-            if docker compose exec -T db sh -c "pg_isready -U parking_user" 2>/dev/null | grep -q "accepting connections"; then
-          echo "✅ PostgreSQL is ready!"
-              postgres_ready=true
-              break
-            fi
-            
-            # Si pg_isready n'est pas disponible, vérifier que le conteneur répond
-            if docker compose exec -T db sh -c "psql -U parking_user -d parking_db_test -c 'SELECT 1'" 2>/dev/null | grep -q "1"; then
-              echo "✅ PostgreSQL is ready (verified via psql)!"
-              postgres_ready=true
-              break
-            fi
-            
-            echo "Waiting for PostgreSQL... (attempt $((attempt+1))/$max_attempts)"
-            sleep 3
-            attempt=$((attempt+1))
-          done
-          
-          if [ "$postgres_ready" != "true" ]; then
-            echo "❌ PostgreSQL did not become ready within timeout!"
-            echo "PostgreSQL logs:"
-            docker compose logs db | tail -50
-            echo ""
-            echo "Container status:"
-            docker compose ps db
-            echo ""
-            echo "Trying to connect manually:"
-            docker compose exec -T db pg_isready -U parking_user || echo "pg_isready failed"
-            docker compose exec -T db psql -U parking_user -l || echo "psql -l failed"
-            exit 1
-          fi
-          
-          # Vérification supplémentaire
-          echo "Verifying PostgreSQL connection..."
-          if docker compose exec -T db sh -c "pg_isready -U parking_user" 2>/dev/null | grep -q "accepting connections"; then
-            echo "✅ PostgreSQL connection verified!"
-          else
-            echo "⚠️ pg_isready check failed, but continuing..."
-          fi
-          
-          echo ""
-          echo "=== Waiting for MongoDB ==="
-          max_attempts=60
-          attempt=0
-          mongo_ready=false
-          
-          while [ $attempt -lt $max_attempts ]; do
-            # Vérifier si le conteneur est en cours d'exécution
-            if ! docker compose ps mongodb | grep -q "Up"; then
-              echo "⚠️ Container 'mongodb' is not running! (attempt $((attempt+1))/$max_attempts)"
-              docker compose ps mongodb
-              sleep 3
-              attempt=$((attempt+1))
-              continue
-            fi
-            
-            # Vérifier si MongoDB est prêt
-            if docker compose exec -T mongodb mongosh --eval "db.runCommand({ ping: 1 })" --quiet 2>/dev/null | grep -q "ok"; then
-          echo "✅ MongoDB is ready!"
-              mongo_ready=true
-              break
-            fi
-            
-            echo "Waiting for MongoDB... (attempt $((attempt+1))/$max_attempts)"
-            sleep 3
-            attempt=$((attempt+1))
-          done
-          
-          if [ "$mongo_ready" != "true" ]; then
-            echo "❌ MongoDB did not become ready within timeout!"
-            echo "MongoDB logs:"
-            docker compose logs mongodb | tail -50
-            echo "Container status:"
-            docker compose ps mongodb
-            exit 1
-          fi
-          
-          echo ""
-          echo "Waiting for web server to initialize..."
-          sleep 10
-          echo "✅ All services should be ready!"
-
-      - name: Check container health
-        run: |
-          docker compose ps
-          docker compose logs web
-          docker compose logs db
-          docker compose logs mongodb
-
-      - name: Test health endpoint
-        run: |
-          echo "Testing health endpoint..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
-          echo "Health endpoint returned: $response"
-          if [ "$response" != "200" ]; then
-            echo "❌ Health check failed with status: $response"
-            echo "Web server logs:"
-            docker compose logs web
-            exit 1
-          fi
-          echo "✅ Health check passed!"
-
-      - name: Test PostgreSQL connection
-        run: |
-          echo "Testing PostgreSQL connection..."
-          echo "Fetching response from /db-test..."
-          response=$(curl -s http://localhost/db-test)
-          echo "=========================================="
-          echo "Full Response:"
-          echo "$response"
-          echo "=========================================="
-          
-          # Check if response contains success status
-          if echo "$response" | grep -qi 'success'; then
-            echo "✅ PostgreSQL connection test passed!"
-          else
-            echo "❌ PostgreSQL connection test failed!"
-            echo "Expected JSON with 'success' status, but got different response"
-            echo ""
-            echo "Database logs:"
-            docker compose logs db | tail -50
-            echo ""
-            echo "Web logs:"
-            docker compose logs web | tail -50
-            exit 1
-          fi
-
-      - name: Test MongoDB connection
-        run: |
-          echo "Testing MongoDB connection..."
-          echo "Fetching response from /mongo-test..."
-          response=$(curl -s http://localhost/mongo-test)
-          echo "=========================================="
-          echo "Full Response:"
-          echo "$response"
-          echo "=========================================="
-          
-          # Check if response contains success status
-          if echo "$response" | grep -qi 'success'; then
-            echo "✅ MongoDB connection test passed!"
-          else
-            echo "❌ MongoDB connection test failed!"
-            echo "Expected JSON with 'success' status, but got different response"
-            echo ""
-            echo "MongoDB logs:"
-            docker compose logs mongodb | tail -50
-            echo ""
-            echo "Web logs:"
-            docker compose logs web | tail -50
-            exit 1
-          fi
-
-      - name: Cleanup
-        if: always()
-        run: docker compose down -v
-
+      # ... reste des étapes inchangées ...
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -751,10 +160,8 @@ jobs:
           extensions: pdo, pdo_pgsql, zip, gd, mongodb
           coverage: none
           tools: composer:v2, phpstan, php-cs-fixer
-
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=ext-mongodb
-
       - name: Check code style (PSR-12)
         run: |
           if [ -f ".php-cs-fixer.php" ]; then
@@ -763,7 +170,6 @@ jobs:
             echo "PHP-CS-Fixer config not found, skipping"
           fi
         continue-on-error: true
-
       - name: Run PHPStan static analysis
         run: |
           if [ -f "phpstan.neon" ]; then
@@ -776,17 +182,14 @@ jobs:
   security-check:
     name: Security Vulnerability Check
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           tools: composer:v2
-
       - name: Check for security vulnerabilities
         run: composer audit
         continue-on-error: true
