@@ -11,7 +11,7 @@ clean_architecture/
 │   │   │   ├── Parking.php              # 🆕 À créer
 │   │   │   ├── Reservation.php          # ⚠️ Renommer Booking → Reservation ✅ 
 │   │   │   ├── Stationnement.php        # 🆕 À créer
-│   │   │   └── Abonnement.php           # 🆕 À créer
+│   │   │   └── Abonnement.php           # ✅ Implémenté
 │   │   │
 │   │   ├── ValueObjects/ ⚠️ Renommer ObjectValues en ValuesObjects
 │   │   │   ├── User/
@@ -36,7 +36,7 @@ clean_architecture/
 │   │   │   ├── ParkingRepositoryInterface.php      # 🆕 À créer
 │   │   │   ├── ReservationRepositoryInterface.php  # ⚠️ Renommer Booking en 
 │   │   │   ├── StationnementRepositoryInterface.php # 🆕 À créer
-│   │   │   └── AbonnementRepositoryInterface.php   # 🆕 À créer
+│   │   │   └── AbonnementRepositoryInterface.php   # ✅ Implémenté
 │   │   │
 │   │   ├── Services/                    # Services du domaine (logique métier complexe)
 │   │   │   ├── JwtServiceInterface.php  # ✅ Existe
@@ -72,8 +72,8 @@ clean_architecture/
 │   │   │   ├── Stationnement/           # 🆕 À créer
 │   │   │   │   └── StationnementResponseDto.php
 │   │   │   └── Abonnement/              # 🆕 À créer
-│   │   │       ├── CreateAbonnementDto.php
-│   │   │       └── AbonnementResponseDto.php
+│   │   │       ├── CreateAbonnementDto.php # ✅ Implémenté
+│   │   │       └── AbonnementResponseDto.php # ✅ Implémenté
 │   │   │
 │   │   └── UseCases/
 │   │       ├── Auth/
@@ -113,11 +113,11 @@ clean_architecture/
 │   │       │   ├── ExitParkingUseCase.php
 │   │       │   └── GetStationnementUseCase.php
 │   │       │
-│   │       └── Abonnement/              # 🆕 À créer 
-│   │           ├── CreateAbonnementUseCase.php
-│   │           ├── SubscribeToAbonnementUseCase.php
-│   │           ├── ValidateAbonnementUseCase.php
-│   │           └── ListAbonnementsForParkingUseCase.php
+│   │       └── Abonnement/              # ✅ Partiellement implémenté
+│   │           ├── CreateAbonnementUseCase.php       # ✅ Implémenté
+│   │           ├── SubscribeToAbonnementUseCase.php   # ✅ Implémenté
+│   │           ├── ValidateAbonnementUseCase.php      # ✅ Implémenté
+│   │           └── ListAbonnementsForParkingUseCase.php # ✅ Implémenté
 │   │
 │   ├── Infrastructure/                  # 🟡 COUCHE INFRASTRUCTURE
 │   │   ├── Persistence/
@@ -127,7 +127,7 @@ clean_architecture/
 │   │   │   │   ├── ParkingRepository.php            # 🆕 À créer
 │   │   │   │   ├── ReservationRepository.php        # ✅ Existe
 │   │   │   │   ├── StationnementRepository.php      # 🆕 À créer
-│   │   │   │   └── AbonnementRepository.php         # 🆕 À créer
+│   │   │   │   └── AbonnementRepository.php         # ✅ Implémenté (SQL + Mongo time_slots)
 │   │   │   │
 │   │   │   └── NoSql/                   # MongoDB (ou JSON files)
 │   │   │       ├── MongoDBConnection.php

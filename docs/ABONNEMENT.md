@@ -52,8 +52,6 @@ docker-compose exec web vendor/bin/phpunit
 
 **Points d'attention / prochaines améliorations suggérées**
 - Consolidation des namespaces : le projet contient à la fois `ObjectValues` et `ValueObjects`, ce qui a causé des duplications et des adaptateurs. Une refonte pour choisir une convention unique est recommandée.
-- Couverture : ajouter des tests unitaires supplémentaires pour `Abonnement::coversDateTime` couvrant combinaisons de créneaux multiples dans un même abonnement.
-- Documentation API métier : ajouter un diagramme simple indiquant les types d'abonnement (`TOTAL`, `SPECIFIQUE`), leurs invariants et exemples d'utilisation.
 - Cas limites : test des transitions lors de l'heure d'été/hiver si l'application vise des environnements avec DST.
 
 ## Diagramme métier — Abonnement (simple)
@@ -82,11 +80,59 @@ Exemples d'utilisation:
 - Abonnement SPECIFIQUE: `type = 'specifique'`, `timeSlots = [TimeSlot::fromDayTime(...), ...]` → la méthode `coversDateTime()` teste si l'instant donné est couvert par l'un des créneaux.
 ```
 
+## Application layer — UseCases et DTOs
+
+Nous avons ajouté une couche Application minimale pour exposer et orchestrer la gestion des abonnements :
+
+- DTOs:
+  - `CreateAbonnementDto` : `userId`, `parkingId`, `type`, `timeSlots[]` (internes `TimeSlot`), `startDate`, `endDate`, `monthlyPrice`.
+  - `AbonnementResponseDto` : `id`, `userId`, `parkingId`, `type`, `startDate`, `endDate`, `monthlyPrice`.
+
+- UseCases:
+  - `CreateAbonnementUseCase` : crée un `Abonnement` à partir d'un `CreateAbonnementDto`, le persiste via `AbonnementRepositoryInterface` et retourne un `AbonnementResponseDto`.
+  - `ListAbonnementsForParkingUseCase` : liste les abonnements actifs pour un parking.
+  - `GetAbonnementUseCase` : récupère un abonnement par identifiant.
+
+Remarque : ces UseCases sont conçus pour être testés indépendamment (tests unitaires utilisent un mock de `AbonnementRepositoryInterface`).
+
+API HTTP / Controller : le controller doit convertir la requête JSON en `CreateAbonnementDto` (parser des créneaux horaires en `TimeSlot`), appeler `CreateAbonnementUseCase` puis renvoyer le `AbonnementResponseDto`.
+
+
 ---
 
-Si vous voulez, je peux :
-- ajouter ce fichier dans le README principal ou `docs/` (déjà créé ici),
-- générer un diagramme simple (ascii ou image) montrant comment `TimeSlot` couvre la semaine,
-- ou lancer la suite complète des tests d'intégration (si vous voulez que je démarre/ajuste les conteneurs DB).
+## Explication synthétique des changements réalisés
 
-Souhaitez-vous que je pousse ce fichier sur une branche distante, ou que je commence la consolidation `ObjectValues` vs `ValueObjects` ?
+- **But général :** ajouter la gestion d'abonnements temporels (créneaux hebdomadaires multi-jours) et d'abonnements "total" tout en respectant la séparation Clean Architecture.
+
+- **Domain (ce qui a été modifié) :**
+  - `Abonnement` : ajout de la méthode `coversDateTime(DateTimeInterface)` ; validation adaptée pour autoriser `timeSlots = []` quand `type === TYPE_TOTAL` ; règles métier (durée minimale/maximale, status, paiement).
+  - `TimeSlot` (ValueObject) : support des créneaux multi-jours et du "wrap" semaine ; utilitaires `coversDateTime()` / `isActiveAt()` / `toArray()`.
+
+- **Persistance (décision technique) :**
+  - Implémentation hybride : la table Postgres `abonnements` conserve les métadonnées (dates, price, status, référence au document de créneaux) ; MongoDB stocke les documents `creneaux_abonnements` pour la représentation souple des `timeSlots`.
+  - Amélioration : lors d'une mise à jour qui insère un nouveau document Mongo, le document Mongo ancien est supprimé si présent (cleanup pour éviter les orphelins).
+
+- **Couche Application :**
+  - DTOs : `CreateAbonnementDto`, `AbonnementResponseDto`.
+  - UseCases : `CreateAbonnementUseCase`, `GetAbonnementUseCase` (lance `NotFoundException` si introuvable), `ListAbonnementsForParkingUseCase`, `SubscribeToAbonnementUseCase`, `ValidateAbonnementUseCase`.
+
+- **Presenter / HTTP :**
+  - `AbonnementController` exposé via `public/index.php` avec endpoints protégés par `AuthenticationMiddleware` :
+    - `POST /api/abonnements` → création
+    - `GET /api/abonnements/{id}` → récupération (404 si introuvable)
+    - `GET /api/parkings/{parkingId}/abonnements` → liste abonnements actifs
+    - `POST /api/abonnements/{id}/subscribe` → marquer comme payé/activer
+    - `POST /api/abonnements/{id}/validate` → vérifier couverture d'une DateTime
+
+- **Tests ajoutés :**
+  - Unitaires domaine : `TimeSlot`, `Abonnement::coversDateTime`.
+  - UseCases : tests unitaires pour `CreateAbonnementUseCase`, `GetAbonnementUseCase` (maintenant lève `NotFoundException`).
+  - Presenter : tests unitaires pour `AbonnementController` (mocks des use cases).
+
+- **Points importants à connaître :**
+  - La persistance Postgres + Mongo n'est pas atomique ; le mécanisme de cleanup réduit le risque d'orphelins mais une stratégie plus robuste (replace, transactions compensatoires, ou test d'intégration de bout en bout) est recommandée.
+  - Il est conseillé d'ajouter du logging (PSR‑3) pour tracer les erreurs Mongo et les opérations de nettoyage.
+  - Consolidation des namespaces `ValueObjects` / `ObjectValues` serait utile pour éviter les adaptateurs et confusions.
+
+
+
