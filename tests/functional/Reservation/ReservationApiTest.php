@@ -14,6 +14,7 @@ use App\Presenter\Http\Controllers\Api\ReservationController;
 class ReservationApiTest extends TestCase
 {
     private PDO $pdo;
+    private ?string $authToken = null;
     private string $userId;
     private string $parkingId;
 
@@ -33,7 +34,9 @@ class ReservationApiTest extends TestCase
         } catch (\PDOException $e) {
         }
         
-        $this->userId = $this->createUserInDb('test@example.com', 'password123');
+        // Utilisation d'un email unique pour éviter les conflits
+        $uniqueEmail = 'test_' . uniqid() . '@example.com';
+        $this->userId = $this->createUserInDb($uniqueEmail, 'password123');
         $this->parkingId = $this->createParkingInDb($this->userId);
     }
 
@@ -60,9 +63,10 @@ class ReservationApiTest extends TestCase
         
         $response = $this->makeRequest('POST', '/api/reservations', $data);
         
-        $this->assertEquals(200, $response['code']);
+        $this->assertEquals(200, $response['code'], 'Response: ' . json_encode($response));
         $this->assertEquals('success', $response['data']['status']);
         $this->assertArrayHasKey('id', $response['data']['data']);
+        $this->assertEquals('pending', $response['data']['data']['status']);
     }
 
     public function test_get_reservation_by_id(): void
@@ -73,7 +77,7 @@ class ReservationApiTest extends TestCase
         
         $response = $this->makeRequest('GET', "/api/reservations/$reservationId");
         
-        $this->assertEquals(200, $response['code']);
+        $this->assertEquals(200, $response['code'], 'Response: ' . json_encode($response));
         $this->assertEquals($reservationId, $response['data']['data']['id']);
     }
 
@@ -82,9 +86,9 @@ class ReservationApiTest extends TestCase
         $this->createReservationInDb($this->userId, $this->parkingId, (new \DateTime('+1 day 08:00'))->format('Y-m-d H:i:s'), (new \DateTime('+1 day 09:00'))->format('Y-m-d H:i:s'));
         $this->createReservationInDb($this->userId, $this->parkingId, (new \DateTime('+1 day 10:00'))->format('Y-m-d H:i:s'), (new \DateTime('+1 day 11:00'))->format('Y-m-d H:i:s'));
         
-        $response = $this->makeRequest('GET', '/api/reservations', ['user_id' => $this->userId]); // Passer user_id dans data pour simuler query params si besoin, ou via l'appel controller direct
+        $response = $this->makeRequest('GET', '/api/reservations', ['user_id' => $this->userId]);
         
-        $this->assertEquals(200, $response['code']);
+        $this->assertEquals(200, $response['code'], 'Response: ' . json_encode($response));
         $this->assertCount(2, $response['data']['data']);
     }
 
@@ -94,7 +98,7 @@ class ReservationApiTest extends TestCase
         
         $response = $this->makeRequest('DELETE', "/api/reservations/$reservationId");
         
-        $this->assertEquals(200, $response['code']);
+        $this->assertEquals(200, $response['code'], 'Response: ' . json_encode($response));
         $this->assertEquals('success', $response['data']['status']);
         
         $stmt = $this->pdo->prepare('SELECT status FROM reservations WHERE id = ?');
@@ -115,6 +119,9 @@ class ReservationApiTest extends TestCase
 
         // 2. Simuler le routing
         try {
+            // Reset code pour le prochain appel
+            http_response_code(200);
+
             // GET /api/reservations/{id} ou GET /api/reservations
             if ($method === 'GET') {
                 if (preg_match('#^/api/reservations/([^/]+)$#', $path, $matches)) {
@@ -145,16 +152,12 @@ class ReservationApiTest extends TestCase
                 return ['code' => 404, 'data' => ['error' => 'Not Found']];
             }
 
-            // Le contrôleur retourne un tableau (pas de Response object), donc on suppose 200 si pas d'exception/erreur explicite
-            // Sauf si le contrôleur utilise http_response_code() en interne ?
-            // Oui, ReservationController utilise http_response_code().
-            // Mais en CLI PHPUnit, http_response_code() fonctionne et stocke l'état.
-            
+            // Capture le code HTTP (qui a pu être changé par le contrôleur via http_response_code())
             $code = http_response_code() ?: 200;
             
-            // Reset code pour le prochain appel
-            http_response_code(200);
-
+            // Si le contrôleur retourne une structure qui contient 'status' => 'error', on peut déduire un code d'erreur
+            // Mais fions-nous d'abord à http_response_code()
+            
             return [
                 'code' => $code,
                 'data' => $response
