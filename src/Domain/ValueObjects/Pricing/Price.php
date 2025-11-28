@@ -2,7 +2,7 @@
 
 namespace App\Domain\ValueObjects\Pricing;
 
-class Price extends \App\Domain\ObjectValues\Price\Price
+class Price extends \App\Domain\ValueObjects\Price\Price
 {
     // Adapter class to keep backwards compatibility with code expecting
     // App\Domain\ValueObjects\Pricing\Price while reusing the canonical Price VO.
