@@ -18,7 +18,7 @@ clean_architecture/
 │   │   │   ├── Stationnement.php        # ✅ Existe
 │   │   │   └── Abonnement.php           # ✅ Existe
 │   │   │
-│   │   ├── ValueObjects/ ⚠️ Renommer ObjectValues en ValuesObjects
+│   │   ├── ValueObjects/ 
 │   │   │   ├── User/
 │   │   │   │   ├── Email.php            # ✅ Existe
 │   │   │   │   ├── IdUser.php           # ✅ Existe
@@ -67,10 +67,13 @@ clean_architecture/
 │   │   │   │   ├── CreateUserDto.php    # ✅ Existe
 │   │   │   │   ├── UpdateUserDto.php    # ✅ Existe
 │   │   │   │   └── UserResponseDto.php  # ✅ Existe
-│   │   │   ├── Parking/                 # 🆕 À créer
-│   │   │   │   ├── CreateParkingDto.php
-│   │   │   │   ├── UpdateParkingDto.php
-│   │   │   │   └── ParkingResponseDto.php
+│   │   │   ├── ParkingOwner/            # ✅ Existe 
+│   │   │   │   ├── RegisterParkingOwnerDto.php # ✅ Existe
+│   │   │   │   └── ParkingOwnerResponseDto.php # ✅ Existe
+│   │   │   ├── Parking/                 # ✅ Existe 
+│   │   │   │   ├── CreateParkingDto.php # ✅ Créé
+│   │   │   │   ├── UpdateParkingDto.php # ✅ Créé
+│   │   │   │   └── ParkingResponseDto.php # ✅ Créé
 │   │   │   ├── Reservation/             # 🆕 À créer
 │   │   │   │   ├── CreateReservationDto.php
 │   │   │   │   └── ReservationResponseDto.php
@@ -84,7 +87,7 @@ clean_architecture/
 │   │       ├── Auth/
 │   │       │   └── LoginUserUseCase.php # ✅ Existe
 │   │       │
-│   │       ├── User/                    # ✅ Existe (à compléter)
+│   │       ├── User/                    
 │   │       │   ├── CreateUserUseCase.php
 │   │       │   ├── GetUserUseCase.php
 │   │       │   ├── ListUsersUseCase.php
