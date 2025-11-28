@@ -261,4 +261,33 @@ class Reservation
     {
         return $this->parkingId === $parkingId;
     }
+
+    public static function reconstitute(
+        string $id,
+        string $userId,
+        string $parkingId,
+        \DateTime $startTime,
+        \DateTime $endTime,
+        string $status,
+        ?Price $price,
+        bool $isPaid,
+        \DateTime $createdAt,
+        \DateTime $updatedAt
+    ): self {
+        $reservation = new self(
+            $userId,
+            $parkingId,
+            $startTime,
+            $endTime,
+            $createdAt,
+            $updatedAt,
+            $id
+        );
+        
+        $reservation->status = $status;
+        $reservation->price = $price;
+        $reservation->isPaid = $isPaid;
+        
+        return $reservation;
+    }
 }
