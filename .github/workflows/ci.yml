@@ -303,16 +303,6 @@ jobs:
           MONGO_USER: parking_mongo
           MONGO_PASSWORD: test_password
         run: |
-          # Seed Postgres with minimal users/parkings if missing (helps integration tests)
-          if command -v psql >/dev/null 2>&1; then
-            echo "Seeding Postgres (if empty)..."
-            export PGPASSWORD="$DB_PASSWORD"
-            psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c "INSERT INTO users (id, name, email, created_at) SELECT 'seed-user-1','Seed User','seed+ci@example.com', now() WHERE NOT EXISTS (SELECT 1 FROM users);" || echo "Warning: could not seed users"
-            psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c "INSERT INTO parkings (id, owner_id, name, created_at) SELECT 'seed-parking-1','seed-user-1','Seed Parking', now() WHERE NOT EXISTS (SELECT 1 FROM parkings);" || echo "Warning: could not seed parkings"
-          else
-            echo "psql not available, skipping DB seed"
-          fi
-
           if [ -f "vendor/bin/phpunit" ]; then
             vendor/bin/phpunit --testdox
           else

@@ -91,6 +91,28 @@ class AbonnementRepositoryIntegrationTest extends TestCase
         // Use existing seeded user and parking IDs from the DB to satisfy FK constraints
         $uRow = $this->pdo->query('SELECT id FROM users LIMIT 1')->fetch(\PDO::FETCH_ASSOC);
         $pRow = $this->pdo->query('SELECT id FROM parkings LIMIT 1')->fetch(\PDO::FETCH_ASSOC);
+
+        // If missing, try to insert minimal seed data (safe, idempotent)
+        if (empty($uRow)) {
+            try {
+                $this->pdo->exec("INSERT INTO users (id, role, first_name, name, email, password, created_at, updated_at) SELECT 'seed-user-1','user','Seed','User','seed+ci@example.com','\\$2y\\$10\\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', now(), now() WHERE NOT EXISTS (SELECT 1 FROM users);");
+            } catch (\Throwable $e) {
+                // ignore seed errors and fallback to skip below
+            }
+            $uRow = $this->pdo->query('SELECT id FROM users LIMIT 1')->fetch(\PDO::FETCH_ASSOC);
+        }
+
+        if (empty($pRow)) {
+            try {
+                $stmt = $this->pdo->prepare("INSERT INTO parkings (owner_id, title, description, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots, created_at, updated_at) SELECT :owner_id, 'Seed Parking', 'Seeded by test', 'Test Address', 'TestCity', '00000', 48.8566, 2.3522, 5.00, 1, 1, now(), now() WHERE NOT EXISTS (SELECT 1 FROM parkings);");
+                $stmt->execute([':owner_id' => $uRow['id'] ?? 'seed-user-1']);
+            } catch (\Throwable $e) {
+                // ignore seed errors and fallback to skip below
+            }
+            $pRow = $this->pdo->query('SELECT id FROM parkings LIMIT 1')->fetch(\PDO::FETCH_ASSOC);
+        }
+
+        // If seeding did not succeed, skip the test to avoid false failures
         if (empty($uRow) || empty($pRow)) {
             $this->markTestSkipped('Seed users or parkings not present in DB');
             return;
