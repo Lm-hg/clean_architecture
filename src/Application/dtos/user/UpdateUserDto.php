@@ -2,8 +2,8 @@
 
 namespace App\Application\dtos\user;
 
-use App\Domain\ObjectValues\User\Password;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\Password;
+use App\Domain\ValueObjects\User\Role;
 
 class UpdateUserDto
 {

@@ -12,6 +12,11 @@ clean_architecture/
 │   │   │   ├── Reservation.php          # ⚠️ Renommer Booking → Reservation ✅ 
 │   │   │   ├── Stationnement.php        # 🆕 À créer
 │   │   │   └── Abonnement.php           # ✅ Implémenté
+│   │   │   ├── ParkingOwner.php         # ✅ Existe
+│   │   │   ├── Parking.php              # ✅ Existe
+│   │   │   ├── Reservation.php          # ✅ Existe
+│   │   │   ├── Stationnement.php        # ✅ Existe
+│   │   │   └── Abonnement.php           # ✅ Existe
 │   │   │
 │   │   ├── ValueObjects/ ⚠️ Renommer ObjectValues en ValuesObjects
 │   │   │   ├── User/
@@ -34,7 +39,7 @@ clean_architecture/
 │   │   │   ├── UserRepositoryInterface.php          # ✅ Existe
 │   │   │   ├── ParkingOwnerRepositoryInterface.php # 🆕 À créer
 │   │   │   ├── ParkingRepositoryInterface.php      # 🆕 À créer
-│   │   │   ├── ReservationRepositoryInterface.php  # ⚠️ Renommer Booking en 
+│   │   │   ├── ReservationRepositoryInterface.php  # ⚠️ Renommer Booking en Reser
 │   │   │   ├── StationnementRepositoryInterface.php # 🆕 À créer
 │   │   │   └── AbonnementRepositoryInterface.php   # ✅ Implémenté
 │   │   │
@@ -149,7 +154,7 @@ clean_architecture/
 │       │   │   │   ├── ParkingController.php         # 🆕 À créer
 │       │   │   │   ├── ReservationController.php     # 🆕 À créer
 │       │   │   │   ├── StationnementController.php   # 🆕 À créer
-│       │   │   │   └── AbonnementController.php      # 🆕 À créer
+│       │   │   │   └── AbonnementController.php      # ✅ Implémenté
 │       │   │   └── Web/                # 🆕 À séparer des contrôleurs API
 │       │   │       ├── HomeController.php
 │       │   │       ├── AuthWebController.php

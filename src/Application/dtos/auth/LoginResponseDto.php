@@ -2,9 +2,9 @@
 
 namespace App\Application\dtos\auth;
 
-use App\Domain\ObjectValues\User\IdUser;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\IdUser;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Role;
 
 class LoginResponseDto
 {

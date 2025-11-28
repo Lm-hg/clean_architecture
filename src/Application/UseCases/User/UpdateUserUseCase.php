@@ -4,11 +4,11 @@ namespace App\Application\UseCases\User;
 
 use App\Application\dtos\user\UpdateUserDto;
 use App\Application\dtos\user\UserReponseDto;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\ObjectValues\User\IdUser;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\IdUser;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Role;
 use DateTime;
 
 class UpdateUserUseCase
@@ -36,8 +36,8 @@ class UpdateUserUseCase
         $now = new DateTime();
         
         // Créer l'entité User mise à jour (on garde l'email et la date de création originaux)
-        // Les validations (rôle, prénom, nom) sont maintenant dans le constructeur de UserEntity
-        $updatedUser = new UserEntity(
+        // Les validations (rôle, prénom, nom) sont maintenant dans le constructeur de User
+        $updatedUser = new User(
             $existingUser->getId(),
             $updateUserDto->role->getRole(),
             $updateUserDto->firstName,

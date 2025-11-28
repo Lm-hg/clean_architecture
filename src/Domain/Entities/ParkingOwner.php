@@ -2,24 +2,26 @@
 
 namespace App\Domain\Entities;
 
-use App\Domain\ValueObjects\Email;
+use App\Domain\ValueObjects\User\Email;
 
 class ParkingOwner
 {
-    private ?int $id;
+    private ?string $id;
     private Email $email;
     private string $passwordHash;
     private string $nom;
     private string $prenom;
-    private \DateTimeImmutable $createdAt;
+    private \DateTime $createdAt;
+    private \DateTime $updatedAt;
 
     public function __construct(
         Email $email,
         string $passwordHash,
         string $nom,
         string $prenom,
-        \DateTimeImmutable $createdAt,
-        ?int $id = null
+        \DateTime $createdAt,
+        \DateTime $updatedAt,
+        ?string $id = null
     ) {
         $this->validateNom($nom);
         $this->validatePrenom($prenom);
@@ -31,6 +33,7 @@ class ParkingOwner
         $this->nom = $nom;
         $this->prenom = $prenom;
         $this->createdAt = $createdAt;
+        $this->updatedAt = $updatedAt;
     }
 
     private function validateNom(string $nom): void
@@ -60,7 +63,7 @@ class ParkingOwner
         }
     }
 
-    public function getId(): ?int
+    public function getId(): ?string
     {
         return $this->id;
     }
@@ -84,6 +87,7 @@ class ParkingOwner
     {
         $this->validatePasswordHash($newPasswordHash);
         $this->passwordHash = $newPasswordHash;
+        $this->updatedAt = new \DateTime();
     }
 
     public function verifyPassword(string $plainPassword): bool
@@ -107,6 +111,7 @@ class ParkingOwner
         $this->validatePrenom($prenom);
         $this->nom = $nom;
         $this->prenom = $prenom;
+        $this->updatedAt = new \DateTime();
     }
 
     public function getFullName(): string
@@ -114,8 +119,13 @@ class ParkingOwner
         return $this->prenom . ' ' . $this->nom;
     }
 
-    public function getCreatedAt(): \DateTimeImmutable
+    public function getCreatedAt(): \DateTime
     {
         return $this->createdAt;
+    }
+
+    public function getUpdatedAt(): \DateTime
+    {
+        return $this->updatedAt;
     }
 }

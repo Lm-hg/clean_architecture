@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\ObjectValues\User;
+namespace App\Domain\ValueObjects\User;
 
 final class IdUser
 {
