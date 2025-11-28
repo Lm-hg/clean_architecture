@@ -303,6 +303,14 @@ jobs:
           MONGO_USER: parking_mongo
           MONGO_PASSWORD: test_password
         run: |
+          # Run integration seed script (idempotent) to ensure required rows exist
+          if command -v php >/dev/null 2>&1 && [ -f "scripts/seed-integration.php" ]; then
+            echo "Running integration seeder..."
+            php scripts/seed-integration.php || echo "Seeder script exited with non-zero code"
+          else
+            echo "PHP or seeder script not available, skipping seed step"
+          fi
+
           if [ -f "vendor/bin/phpunit" ]; then
             vendor/bin/phpunit --testdox
           else
