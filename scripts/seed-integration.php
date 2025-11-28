@@ -39,7 +39,9 @@ if ((!tableExists($pdo, 'users') || !tableExists($pdo, 'parkings')) && file_exis
     echo "Seeder: init.sql found; attempting to apply via psql if available...\n";
     $which = trim((string) shell_exec('which psql 2>/dev/null'));
     if ($which !== '') {
-        $cmd = sprintf('psql -h %s -U %s -d %s -f %s', escapeshellarg($host), escapeshellarg($user), escapeshellarg($db), escapeshellarg($initPath));
+        // Provide password to psql non-interactively to avoid password prompt in CI
+        $pgpass = escapeshellarg($pass);
+        $cmd = sprintf('PGPASSWORD=%s psql -h %s -U %s -d %s -f %s', $pgpass, escapeshellarg($host), escapeshellarg($user), escapeshellarg($db), escapeshellarg($initPath));
         echo "Seeder: running: $cmd\n";
         passthru($cmd, $rc);
         if ($rc !== 0) {
