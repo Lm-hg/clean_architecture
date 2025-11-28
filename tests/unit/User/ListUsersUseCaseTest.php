@@ -36,8 +36,8 @@ class ListUsersUseCaseTest extends TestCase
                 'Doe',
                 'john@example.com',
                 password_hash('password1', PASSWORD_DEFAULT),
-                '2024-01-01 10:00:00',
-                '2024-01-01 10:00:00'
+                new \DateTime('2024-01-01 10:00:00'),
+                new \DateTime('2024-01-01 10:00:00')
             ),
             new User(
                 '223e4567-e89b-12d3-a456-426614174001',
@@ -46,8 +46,8 @@ class ListUsersUseCaseTest extends TestCase
                 'Doe',
                 'jane@example.com',
                 password_hash('password2', PASSWORD_DEFAULT),
-                '2024-01-02 10:00:00',
-                '2024-01-02 10:00:00'
+                new \DateTime('2024-01-02 10:00:00'),
+                new \DateTime('2024-01-02 10:00:00')
             ),
         ];
         

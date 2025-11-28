@@ -38,8 +38,8 @@ class GetUserUseCaseTest extends TestCase
             'Doe',
             'test@example.com',
             password_hash('password123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Configurer le mock pour retourner l'utilisateur

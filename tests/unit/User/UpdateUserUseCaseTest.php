@@ -41,8 +41,8 @@ class UpdateUserUseCaseTest extends TestCase
             'Doe',
             'test@example.com',
             password_hash('oldpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         // Arrange: Créer le DTO de mise à jour
@@ -58,8 +58,8 @@ class UpdateUserUseCaseTest extends TestCase
             'Doe',
             'test@example.com', // L'email reste le même
             password_hash('newpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00', // La date de création reste la même
-            '2024-01-02 10:00:00' // La date de mise à jour change
+            new \DateTime('2024-01-01 10:00:00'), // La date de création reste la même
+            new \DateTime('2024-01-02 10:00:00') // La date de mise à jour change
         );
         
         // Arrange: Configurer les mocks
@@ -119,8 +119,8 @@ class UpdateUserUseCaseTest extends TestCase
             'Doe',
             'test@example.com',
             password_hash('oldpassword123', PASSWORD_DEFAULT),
-            '2024-01-01 10:00:00',
-            '2024-01-01 10:00:00'
+            new \DateTime('2024-01-01 10:00:00'),
+            new \DateTime('2024-01-01 10:00:00')
         );
         
         $newPassword = new Password('newplainpassword123');
