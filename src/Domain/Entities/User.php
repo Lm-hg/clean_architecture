@@ -2,7 +2,7 @@
 
 namespace App\Domain\Entities;
 
-class UserEntity
+class User
 {
     # attributes
 

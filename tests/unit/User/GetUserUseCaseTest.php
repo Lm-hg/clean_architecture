@@ -7,7 +7,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use App\Application\UseCases\User\GetUserUseCase;
 use App\Application\dtos\user\UserReponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 
 class GetUserUseCaseTest extends TestCase
 {
@@ -31,7 +31,7 @@ class GetUserUseCaseTest extends TestCase
         $userId = '123e4567-e89b-12d3-a456-426614174000';
         
         // Arrange: Créer un utilisateur mocké qui sera retourné
-        $userEntity = new UserEntity(
+        $User = new User(
             $userId,
             'user',
             'John',
@@ -47,7 +47,7 @@ class GetUserUseCaseTest extends TestCase
             ->expects($this->once())
             ->method('findById')
             ->with($userId)
-            ->willReturn($userEntity);
+            ->willReturn($User);
         
         // Act: Exécuter le use case
         $result = $this->useCase->execute($userId);

@@ -5,7 +5,7 @@ namespace Tests\Integration\User;
 use PHPUnit\Framework\TestCase;
 use PDO;
 use App\Infrastructure\Persistence\Sql\UserRepository;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 
 class UserRepositoryIntegrationTest extends TestCase
 {
@@ -46,7 +46,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'John',
@@ -79,7 +79,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'Jane',
@@ -104,7 +104,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'John',
@@ -117,7 +117,7 @@ class UserRepositoryIntegrationTest extends TestCase
         $this->repository->create($user);
         
         // Act: Mettre à jour
-        $updatedUser = new UserEntity(
+        $updatedUser = new User(
             $userId,
             'admin',
             'John',
@@ -144,7 +144,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'John',
@@ -170,7 +170,7 @@ class UserRepositoryIntegrationTest extends TestCase
     public function test_find_all_users(): void
     {
         // Arrange: Créer plusieurs utilisateurs
-        $user1 = new UserEntity(
+        $user1 = new User(
             $this->generateUuid(),
             'user',
             'User',
@@ -180,7 +180,7 @@ class UserRepositoryIntegrationTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s')
         );
-        $user2 = new UserEntity(
+        $user2 = new User(
             $this->generateUuid(),
             'admin',
             'User',
@@ -205,7 +205,7 @@ class UserRepositoryIntegrationTest extends TestCase
     public function test_find_by_role(): void
     {
         // Arrange
-        $admin1 = new UserEntity(
+        $admin1 = new User(
             $this->generateUuid(),
             'admin',
             'Admin',
@@ -215,7 +215,7 @@ class UserRepositoryIntegrationTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s')
         );
-        $admin2 = new UserEntity(
+        $admin2 = new User(
             $this->generateUuid(),
             'admin',
             'Admin',
@@ -225,7 +225,7 @@ class UserRepositoryIntegrationTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s')
         );
-        $user = new UserEntity(
+        $user = new User(
             $this->generateUuid(),
             'user',
             'User',
@@ -253,7 +253,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'John',
@@ -277,7 +277,7 @@ class UserRepositoryIntegrationTest extends TestCase
     {
         // Arrange
         $userId = $this->generateUuid();
-        $user = new UserEntity(
+        $user = new User(
             $userId,
             'user',
             'John',
@@ -290,7 +290,7 @@ class UserRepositoryIntegrationTest extends TestCase
         $this->repository->create($user);
         
         // Act: Mettre à jour avec save
-        $updatedUser = new UserEntity(
+        $updatedUser = new User(
             $userId,
             'admin',
             'John',

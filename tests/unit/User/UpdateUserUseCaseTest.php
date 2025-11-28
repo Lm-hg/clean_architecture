@@ -8,7 +8,7 @@ use App\Application\UseCases\User\UpdateUserUseCase;
 use App\Application\dtos\user\UpdateUserDto;
 use App\Application\dtos\user\UserReponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\Entities\UserEntity;
+use App\Domain\Entities\User;
 use App\Domain\ValueObjects\User\Password;
 use App\Domain\ValueObjects\User\Role;
 
@@ -34,7 +34,7 @@ class UpdateUserUseCaseTest extends TestCase
         $userId = '123e4567-e89b-12d3-a456-426614174000';
         
         // Arrange: Créer un utilisateur existant
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
@@ -51,7 +51,7 @@ class UpdateUserUseCaseTest extends TestCase
         $updateUserDto = new UpdateUserDto('Jane', 'Doe', $newPassword, $newRole);
         
         // Arrange: Créer l'utilisateur mis à jour qui sera retourné
-        $updatedUser = new UserEntity(
+        $updatedUser = new User(
             $userId,
             'admin',
             'Jane',
@@ -112,7 +112,7 @@ class UpdateUserUseCaseTest extends TestCase
     {
         // Arrange
         $userId = '123e4567-e89b-12d3-a456-426614174000';
-        $existingUser = new UserEntity(
+        $existingUser = new User(
             $userId,
             'user',
             'John',
@@ -137,7 +137,7 @@ class UpdateUserUseCaseTest extends TestCase
         $this->repositoryMock
             ->expects($this->once())
             ->method('update')
-            ->willReturnCallback(function (UserEntity $user) use (&$capturedUser) {
+            ->willReturnCallback(function (User $user) use (&$capturedUser) {
                 $capturedUser = $user;
                 return $user;
             });
