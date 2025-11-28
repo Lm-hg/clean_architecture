@@ -10,14 +10,24 @@ jobs:
   php-lint-and-test:
     name: PHP Linting & Testing
     runs-on: ubuntu-latest
+    
+    # Définition des variables communes pour le job et les services
+    env:
+      POSTGRES_USER: parking_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: parking_db_test
+      MONGO_USER: parking_mongo
+      MONGO_PASSWORD: test_password
+      MONGO_DB: parking_db_test
 
     services:
       postgres:
         image: postgres:14-alpine
         env:
-          POSTGRES_USER: parking_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: parking_db_test
+          # Utilisation des variables du job
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
         ports:
           - 5432:5432
         options: >-
@@ -29,9 +39,9 @@ jobs:
       mongodb:
         image: mongo:7.0
         env:
-          MONGO_INITDB_ROOT_USERNAME: parking_mongo
-          MONGO_INITDB_ROOT_PASSWORD: test_password
-          MONGO_INITDB_DATABASE: parking_db_test
+          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_USER }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_PASSWORD }}
+          MONGO_INITDB_DATABASE: ${{ env.MONGO_DB }}
         ports:
           - 27017:27017
         options: >-
@@ -58,20 +68,21 @@ jobs:
       - name: Wait for PostgreSQL to be ready
         run: |
           echo "Waiting for PostgreSQL to be ready..."
-          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U ${{ services.postgres.env.POSTGRES_USER }}; do echo "Waiting..."; sleep 2; done'
+          # Utilisation directe des variables d'environnement (accessibles par bash)
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U $POSTGRES_USER; do echo "Waiting..."; sleep 2; done'
           echo "✅ PostgreSQL is ready!"
 
       - name: Apply database schema (init + migrations)
         env:
-          PGPASSWORD: ${{ services.postgres.env.POSTGRES_PASSWORD }}
+          PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
         run: |
           echo "Applying init.sql"
-          psql -h localhost -U ${{ services.postgres.env.POSTGRES_USER }} -d ${{ services.postgres.env.POSTGRES_DB }} -f src/docker/postgres/init.sql
+          psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f src/docker/postgres/init.sql
 
           echo "Applying all migrations"
           for f in src/docker/postgres/migrations/*.sql; do
             echo " → $f"
-            psql -h localhost -U ${{ services.postgres.env.POSTGRES_USER }} -d ${{ services.postgres.env.POSTGRES_DB }} -f "$f"
+            psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f "$f"
           done
 
       - name: Regenerate autoload
@@ -83,13 +94,14 @@ jobs:
       - name: Run PHPUnit tests
         env:
           DB_HOST: localhost
-          DB_NAME: ${{ services.postgres.env.POSTGRES_DB }}
-          DB_USER: ${{ services.postgres.env.POSTGRES_USER }}
-          DB_PASSWORD: ${{ services.postgres.env.POSTGRES_PASSWORD }}
+          DB_NAME: ${{ env.POSTGRES_DB }}
+          DB_USER: ${{ env.POSTGRES_USER }}
+          DB_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
           MONGO_HOST: localhost
-          MONGO_DB: parking_db_test
-          MONGO_USER: parking_mongo
-          MONGO_PASSWORD: test_password
+          MONGO_DB: ${{ env.MONGO_DB }}
+          MONGO_USER: ${{ env.MONGO_USER }}
+          MONGO_PASSWORD: ${{ env.MONGO_PASSWORD }}
+          JWT_SECRET_KEY: test-jwt-secret-key-for-ci-cd
         run: |
           if [ -f "vendor/bin/phpunit" ]; then
             vendor/bin/phpunit --testdox
@@ -97,7 +109,6 @@ jobs:
             echo "PHPUnit not configured yet, skipping tests"
           fi
 
-  # (Les autres jobs — docker-build, code-quality, security-check — restent inchangés)
   docker-build:
     name: Docker Build Verification
     runs-on: ubuntu-latest
