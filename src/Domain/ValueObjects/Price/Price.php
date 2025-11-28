@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\ObjectValues\Price;
+namespace App\Domain\ValueObjects\Price;
 
 class Price
 {

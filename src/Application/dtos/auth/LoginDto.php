@@ -2,7 +2,7 @@
 
 namespace App\Application\dtos\auth;
 
-use App\Domain\ObjectValues\User\Email;
+use App\Domain\ValueObjects\User\Email;
 
 class LoginDto
 {

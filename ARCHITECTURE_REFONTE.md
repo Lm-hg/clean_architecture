@@ -7,11 +7,11 @@ clean_architecture/
 │   ├── Domain/                           # 🔵 COUCHE DOMAINE (Cœur métier)
 │   │   ├── Entities/
 │   │   │   ├── User.php                 # ✅ Existe
-│   │   │   ├── ParkingOwner.php         # 🆕 À créer
-│   │   │   ├── Parking.php              # 🆕 À créer
-│   │   │   ├── Reservation.php          # ⚠️ Renommer Booking → Reservation ✅ 
-│   │   │   ├── Stationnement.php        # 🆕 À créer
-│   │   │   └── Abonnement.php           # 🆕 À créer
+│   │   │   ├── ParkingOwner.php         # ✅ Existe
+│   │   │   ├── Parking.php              # ✅ Existe
+│   │   │   ├── Reservation.php          # ✅ Existe
+│   │   │   ├── Stationnement.php        # ✅ Existe
+│   │   │   └── Abonnement.php           # ✅ Existe
 │   │   │
 │   │   ├── ValueObjects/ ⚠️ Renommer ObjectValues en ValuesObjects
 │   │   │   ├── User/
@@ -34,7 +34,7 @@ clean_architecture/
 │   │   │   ├── UserRepositoryInterface.php          # ✅ Existe
 │   │   │   ├── ParkingOwnerRepositoryInterface.php # 🆕 À créer
 │   │   │   ├── ParkingRepositoryInterface.php      # 🆕 À créer
-│   │   │   ├── ReservationRepositoryInterface.php  # ⚠️ Renommer Booking en 
+│   │   │   ├── ReservationRepositoryInterface.php  # ⚠️ Renommer Booking en Reser
 │   │   │   ├── StationnementRepositoryInterface.php # 🆕 À créer
 │   │   │   └── AbonnementRepositoryInterface.php   # 🆕 À créer
 │   │   │

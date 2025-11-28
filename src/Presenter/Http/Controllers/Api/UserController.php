@@ -9,9 +9,9 @@ use App\Application\UseCases\User\DeleteUserUseCase;
 use App\Application\UseCases\User\ListUsersUseCase;
 use App\Application\dtos\user\CreateUserDto;
 use App\Application\dtos\user\UpdateUserDto;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Password;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Password;
+use App\Domain\ValueObjects\User\Role;
 
 class UserController
 {

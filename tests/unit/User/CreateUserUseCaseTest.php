@@ -9,9 +9,9 @@ use App\Application\dtos\user\CreateUserDto;
 use App\Application\dtos\user\UserReponseDto;
 use App\Domain\Repositories\UserRepositoryInterface;
 use App\Domain\Entities\UserEntity;
-use App\Domain\ObjectValues\User\Email;
-use App\Domain\ObjectValues\User\Password;
-use App\Domain\ObjectValues\User\Role;
+use App\Domain\ValueObjects\User\Email;
+use App\Domain\ValueObjects\User\Password;
+use App\Domain\ValueObjects\User\Role;
 
 class CreateUserUseCaseTest extends TestCase
 {
