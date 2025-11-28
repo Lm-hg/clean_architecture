@@ -190,7 +190,7 @@ class ReservationRepository implements ReservationRepositoryInterface
     private function hydrate(array $row): Reservation
     {
         // Assuming 'total_price' column exists and is currency-agnostic or we default to EUR
-        $price = isset($row['total_price']) ? new Price((float)$row['total_price'], 'EUR') : null;
+        $price = isset($row['total_price']) ? Price::fromFloat((float)$row['total_price'], 'EUR') : null;
         
         return Reservation::reconstitute(
             $row['id'],

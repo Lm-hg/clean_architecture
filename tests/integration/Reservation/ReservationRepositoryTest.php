@@ -19,7 +19,7 @@ class ReservationRepositoryTest extends TestCase
         parent::setUp();
         
         // Connexion à la base de données
-        $this->pdo = require __DIR__ . '/../../../../config/database.php';
+        $this->pdo = require __DIR__ . '/../../../config/database.php';
         
         // Nettoyer les tables
         try {
@@ -34,7 +34,7 @@ class ReservationRepositoryTest extends TestCase
         
         $stmt = $this->pdo->prepare("
             INSERT INTO users (id, role, first_name, name, email, password) 
-            VALUES (:id, 'user', 'Test', 'User', 'test@example.com', 'hash')
+            VALUES (:id, 'user', 'Test', 'User', 'test@example.com', 'password123')
         ");
         $stmt->execute(['id' => $this->userId]);
 
