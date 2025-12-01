@@ -49,7 +49,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             $bulk = new BulkWrite();
             $insertedId = $bulk->insert($doc);
             $wc = new WriteConcern(WriteConcern::MAJORITY, 1000);
-            $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, $wc);
+            $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, ['writeConcern' => $wc]);
 
             if ($insertedId !== null) {
                 $timeSlotsId = (string)$insertedId;
@@ -65,7 +65,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 ':id' => $id,
                 ':user_id' => $abonnement->getUserId(),
                 ':parking_id' => $abonnement->getParkingId(),
-                ':type' => $abonnement->getType(),
+                ':type' => $this->mapTypeToDb($abonnement->getType()),
                 ':start_date' => $abonnement->getStartDate()->format('Y-m-d'),
                 ':end_date' => $abonnement->getEndDate()->format('Y-m-d'),
                 ':is_active' => $abonnement->isActive() ? 1 : 0,
@@ -100,7 +100,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             ':id' => $id,
             ':user_id' => $abonnement->getUserId(),
             ':parking_id' => $abonnement->getParkingId(),
-            ':type' => $abonnement->getType(),
+            ':type' => $this->mapTypeToDb($abonnement->getType()),
             ':start_date' => $abonnement->getStartDate()->format('Y-m-d'),
             ':end_date' => $abonnement->getEndDate()->format('Y-m-d'),
             ':is_active' => $abonnement->isActive() ? 1 : 0,
@@ -124,7 +124,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 try {
                     $bulkDel = new BulkWrite();
                     $bulkDel->delete(['_id' => new ObjectId($oldTimeSlotsId)], ['limit' => 1]);
-                    $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulkDel, new WriteConcern(WriteConcern::MAJORITY, 1000));
+                    $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulkDel, ['writeConcern' => new WriteConcern(WriteConcern::MAJORITY, 1000)]);
                 } catch (\Throwable $e) {
                     // Log or ignore deletion failure; do not break update flow
                 }
@@ -221,5 +221,28 @@ class AbonnementRepository implements AbonnementRepositoryInterface
         // set bits 6-7 to 10
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    private function mapTypeToDb(string $type): string
+    {
+        // Map domain types to the DB enum values used in SQL init script
+        return match ($type) {
+            Abonnement::TYPE_TOTAL => 'monthly',
+            Abonnement::TYPE_WEEKEND => 'weekly',
+            Abonnement::TYPE_SOIR => 'daily',
+            Abonnement::TYPE_SPECIFIQUE => 'custom',
+            default => 'custom',
+        };
+    }
+
+    private function mapDbToType(string $dbType): string
+    {
+        return match ($dbType) {
+            'monthly' => Abonnement::TYPE_TOTAL,
+            'weekly' => Abonnement::TYPE_WEEKEND,
+            'daily' => Abonnement::TYPE_SOIR,
+            'custom' => Abonnement::TYPE_SPECIFIQUE,
+            default => Abonnement::TYPE_SPECIFIQUE,
+        };
     }
 }
