@@ -12,7 +12,7 @@ class ParkingOwnerResponseDto
     public Email $email;
     public \DateTime $createdAt;
     public \DateTime $updatedAt;
-    public ?string $token; // Token JWT optionnel pour les réponses de connexion
+    public ?string $token; 
 
     public function __construct(
         string $id,
