@@ -590,6 +590,103 @@ try {
         exit;
     }
 
+    // API Stationnement routes
+    if (preg_match('#^/api/stationnements(/.*)?$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+
+        // Initialize dependencies
+        $pdo = require BASE_PATH . '/config/database.php';
+        
+        // Repositories
+        $stationnementRepository = new \App\Infrastructure\Persistence\Sql\StationnementRepository($pdo);
+        $parkingRepository = new \App\Infrastructure\Persistence\Sql\ParkingRepository($pdo);
+        $reservationRepository = new \App\Infrastructure\Persistence\Sql\ReservationRepository($pdo);
+        $abonnementRepository = new \App\Infrastructure\Persistence\Sql\AbonnementRepository($pdo);
+        
+        // Services
+        $pricingService = new \App\Domain\Services\PricingService();
+        $penaltyCalculator = new \App\Domain\Services\PenaltyCalculator();
+        
+        // Use Cases
+        $enterParkingUseCase = new \App\Application\UseCases\Stationnement\EnterParkingUseCase(
+            $stationnementRepository,
+            $parkingRepository,
+            $reservationRepository,
+            $abonnementRepository
+        );
+        $exitParkingUseCase = new \App\Application\UseCases\Stationnement\ExitParkingUseCase(
+            $stationnementRepository,
+            $parkingRepository,
+            $reservationRepository,
+            $abonnementRepository,
+            $pricingService,
+            $penaltyCalculator
+        );
+        $getStationnementUseCase = new \App\Application\UseCases\Stationnement\GetStationnementUseCase($stationnementRepository);
+        
+        // Controller
+        $stationnementController = new \App\Presenter\Http\Controllers\Api\StationnementController(
+            $enterParkingUseCase,
+            $exitParkingUseCase,
+            $getStationnementUseCase,
+            $stationnementRepository
+        );
+        
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST', 'PUT'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+        
+        // ID extraction
+        $resourceId = null;
+        $action = null;
+        if (isset($matches[1]) && $matches[1] !== '') {
+            $pathParts = explode('/', trim($matches[1], '/'));
+            $resourceId = $pathParts[0] ?? null;
+            $action = $pathParts[1] ?? null;
+        }
+
+        // Route handling
+        switch ($requestMethod) {
+            case 'POST':
+                if ($action === 'enter') {
+                    // POST /api/stationnements/enter
+                    $response = $stationnementController->enter($requestData);
+                } elseif ($resourceId && $action === 'exit') {
+                    // POST /api/stationnements/{id}/exit
+                    $response = $stationnementController->exit($resourceId, $requestData);
+                } else {
+                    http_response_code(400);
+                    $response = ['status' => 'error', 'message' => 'Invalid endpoint. Use /api/stationnements/enter or /api/stationnements/{id}/exit'];
+                }
+                break;
+                
+            case 'GET':
+                if ($resourceId) {
+                    // GET /api/stationnements/{id}
+                    $userId = $_GET['user_id'] ?? null;
+                    $response = $stationnementController->show($resourceId, $userId);
+                } else {
+                    // GET /api/stationnements?user_id=...
+                    $userId = $_GET['user_id'] ?? null;
+                    $response = $stationnementController->index($userId);
+                }
+                break;
+                
+            default:
+                http_response_code(405);
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Method not allowed'
+                ];
+        }
+        
+        echo json_encode($response, JSON_PRETTY_PRINT);
+        exit;
+    }
+
     // API Abonnement routes (protected)
     if (preg_match('#^/api/abonnements(/.*)?$#', $requestUri, $matches) || preg_match('#^/api/parkings/([^/]+)/abonnements$#', $requestUri, $pm)) {
         header('Content-Type: application/json');
