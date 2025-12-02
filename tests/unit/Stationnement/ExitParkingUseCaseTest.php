@@ -89,6 +89,8 @@ class ExitParkingUseCaseTest extends TestCase
             ->method('calculatePenalty')
             ->willReturn(0.0);
 
+        $parking->method('getAvailableSpots')->willReturn(9);
+        $parking->method('getTotalSpots')->willReturn(10);
         $parking->expects($this->once())
             ->method('incrementAvailableSpots');
 
@@ -178,6 +180,8 @@ class ExitParkingUseCaseTest extends TestCase
             ->method('calculatePenalty')
             ->willReturn(25.0); // Pénalité de 25€
 
+        $parking->method('getAvailableSpots')->willReturn(9);
+        $parking->method('getTotalSpots')->willReturn(10);
         $parking->expects($this->once())->method('incrementAvailableSpots');
         $this->parkingRepositoryMock->expects($this->once())->method('save')->willReturn($parking);
         $this->stationnementRepositoryMock->expects($this->once())->method('save')->willReturnCallback(fn($s) => $s);

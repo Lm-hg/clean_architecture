@@ -23,7 +23,23 @@ CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded'
 CREATE TYPE subscription_type AS ENUM ('monthly', 'weekly', 'daily', 'custom');
 
 -- Parking session status
-CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled');
+-- Create enum type if it doesn't exist, then add 'penalized' if missing
+DO $$ 
+BEGIN
+    -- Create the enum type if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_status') THEN
+        CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled', 'penalized');
+    ELSE
+        -- Type exists, add 'penalized' if it's not already there
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum 
+            WHERE enumlabel = 'penalized' 
+            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'session_status')
+        ) THEN
+            ALTER TYPE session_status ADD VALUE 'penalized';
+        END IF;
+    END IF;
+END $$;
 
 -- ============================================
 -- TABLES

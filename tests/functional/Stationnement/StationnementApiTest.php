@@ -63,7 +63,17 @@ class StationnementApiTest extends TestCase
         $stationnementRepository = new StationnementRepository($this->pdo);
         $parkingRepository = new ParkingRepository($this->pdo);
         $reservationRepository = new ReservationRepository($this->pdo);
-        $abonnementRepository = new AbonnementRepository($this->pdo);
+        
+        // Charger MongoDB pour AbonnementRepository
+        try {
+            $mongo = require __DIR__ . '/../../../config/mongodb.php';
+            $mongoDb = getenv('MONGO_DB') ?: 'parking_db';
+            $abonnementRepository = new AbonnementRepository($this->pdo, $mongo, $mongoDb);
+        } catch (\Throwable $e) {
+            // Si MongoDB n'est pas disponible, créer un mock ou skip
+            $this->markTestSkipped('MongoDB not available: ' . $e->getMessage());
+            return;
+        }
         
         $pricingService = new PricingService();
         $penaltyCalculator = new PenaltyCalculator();
@@ -177,6 +187,11 @@ class StationnementApiTest extends TestCase
         ];
         $response = $this->controller->exit($stationnementId, $exitData);
         
+        // Debug: Afficher le message d'erreur si présent
+        if ($response['status'] === 'error') {
+            $this->fail('Exit failed with error: ' . ($response['message'] ?? 'Unknown error'));
+        }
+        
         // Assert
         $this->assertEquals('success', $response['status']);
         $this->assertArrayHasKey('data', $response);
@@ -217,15 +232,30 @@ class StationnementApiTest extends TestCase
             return;
         }
         
-        // Arrange: Créer plusieurs stationnements
-        $this->controller->enter([
+        // Arrange: Créer un premier stationnement, le terminer, puis en créer un deuxième
+        $enterResponse1 = $this->controller->enter([
             'user_id' => $this->userId,
             'parking_id' => $this->parkingId
         ]);
-        $this->controller->enter([
+        $this->assertEquals('success', $enterResponse1['status'], 'First enter should succeed');
+        $stationnementId1 = $enterResponse1['data']['id'];
+        
+        // Attendre un peu pour avoir une durée valide
+        sleep(1);
+        
+        // Sortir du premier stationnement
+        $exitResponse = $this->controller->exit($stationnementId1, ['user_id' => $this->userId]);
+        if ($exitResponse['status'] !== 'success') {
+            $this->fail('First exit failed: ' . ($exitResponse['message'] ?? 'Unknown error') . ' - Response: ' . json_encode($exitResponse));
+        }
+        $this->assertEquals('success', $exitResponse['status'], 'First exit should succeed');
+        
+        // Créer un deuxième stationnement
+        $enterResponse2 = $this->controller->enter([
             'user_id' => $this->userId,
             'parking_id' => $this->parkingId
         ]);
+        $this->assertEquals('success', $enterResponse2['status'], 'Second enter should succeed');
         
         // Act
         $response = $this->controller->index($this->userId);
@@ -260,6 +290,24 @@ class StationnementApiTest extends TestCase
                 }
             }
         }
+        
+        // S'assurer que l'enum session_status contient 'penalized'
+        try {
+            $this->pdo->exec("
+                DO \$\$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_enum 
+                        WHERE enumlabel = 'penalized' 
+                        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'session_status')
+                    ) THEN
+                        ALTER TYPE session_status ADD VALUE 'penalized';
+                    END IF;
+                END \$\$;
+            ");
+        } catch (\PDOException $e) {
+            // Ignore if enum doesn't exist or value already exists
+        }
     }
 
     private function createUserInDb(string $userId): void
@@ -277,13 +325,25 @@ class StationnementApiTest extends TestCase
 
     private function createParkingInDb(string $parkingId, string $ownerId): void
     {
+        // Créer des opening_hours par défaut (ouvert 24/7)
+        $openingHours = json_encode([
+            'monday' => ['open' => '00:00', 'close' => '23:59'],
+            'tuesday' => ['open' => '00:00', 'close' => '23:59'],
+            'wednesday' => ['open' => '00:00', 'close' => '23:59'],
+            'thursday' => ['open' => '00:00', 'close' => '23:59'],
+            'friday' => ['open' => '00:00', 'close' => '23:59'],
+            'saturday' => ['open' => '00:00', 'close' => '23:59'],
+            'sunday' => ['open' => '00:00', 'close' => '23:59']
+        ]);
+        
         $stmt = $this->pdo->prepare("
-            INSERT INTO parkings (id, owner_id, title, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots, is_available, created_at, updated_at) 
-            VALUES (:id, :owner_id, 'Test Parking', '123 Test St', 'Test City', '12345', 48.8566, 2.3522, 5.0, 10, 10, 'true', NOW(), NOW())
+            INSERT INTO parkings (id, owner_id, title, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots, is_available, opening_hours, created_at, updated_at) 
+            VALUES (:id, :owner_id, 'Test Parking', '123 Test St', 'Test City', '12345', 48.8566, 2.3522, 5.0, 10, 10, 'true', :opening_hours, NOW(), NOW())
         ");
         $stmt->execute([
             'id' => $parkingId,
-            'owner_id' => $ownerId
+            'owner_id' => $ownerId,
+            'opening_hours' => $openingHours
         ]);
     }
 

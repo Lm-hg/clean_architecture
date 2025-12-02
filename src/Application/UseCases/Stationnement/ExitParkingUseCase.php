@@ -106,8 +106,11 @@ class ExitParkingUseCase
         $stationnement->setPrice($price);
 
         // 8. Incrémenter le nombre de places disponibles
-        $parking->incrementAvailableSpots();
-        $this->parkingRepository->save($parking);
+        // Vérifier que le parking n'a pas déjà toutes ses places disponibles
+        if ($parking->getAvailableSpots() < $parking->getTotalSpots()) {
+            $parking->incrementAvailableSpots();
+            $this->parkingRepository->save($parking);
+        }
 
         // 9. Sauvegarder le stationnement
         return $this->stationnementRepository->save($stationnement);

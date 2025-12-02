@@ -597,11 +597,24 @@ try {
         // Initialize dependencies
         $pdo = require BASE_PATH . '/config/database.php';
         
+        // Load MongoDB for AbonnementRepository
+        try {
+            $mongo = require BASE_PATH . '/config/mongodb.php';
+            $mongoDb = getenv('MONGO_DB') ?: 'parking_db';
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'MongoDB connection failed: ' . $e->getMessage()
+            ]);
+            exit;
+        }
+        
         // Repositories
         $stationnementRepository = new \App\Infrastructure\Persistence\Sql\StationnementRepository($pdo);
         $parkingRepository = new \App\Infrastructure\Persistence\Sql\ParkingRepository($pdo);
         $reservationRepository = new \App\Infrastructure\Persistence\Sql\ReservationRepository($pdo);
-        $abonnementRepository = new \App\Infrastructure\Persistence\Sql\AbonnementRepository($pdo);
+        $abonnementRepository = new \App\Infrastructure\Persistence\Sql\AbonnementRepository($pdo, $mongo, $mongoDb);
         
         // Services
         $pricingService = new \App\Domain\Services\PricingService();

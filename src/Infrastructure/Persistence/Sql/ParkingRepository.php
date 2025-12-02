@@ -217,7 +217,8 @@ class ParkingRepository implements ParkingRepositoryInterface
         $openingHoursJson = $this->openingHoursToJson($openingHours);
         
         $tarifs = $parking->getTarifs();
-        $basePrice = $tarifs->all()[0]->getPrice()->getAmount() ?? 0.0;
+        $allTarifs = $tarifs->all();
+        $basePrice = !empty($allTarifs) ? $allTarifs[0]->getPrice()->getAmount() : 0.0;
 
         $stmt = $this->pdo->prepare('
             UPDATE parkings SET
