@@ -2,9 +2,9 @@ name: CI - deploy on prod
 
 on:
   push:
-    branches: [ main, develop, feat/issue-5-booking-module-structure ]
-  pull_request:
     branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop, feat-implement-abonnement-module-structure-module ]
 
 jobs:
   php-lint-and-test:

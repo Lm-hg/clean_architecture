@@ -206,6 +206,195 @@ try {
         exit;
     }
 
+    // API ParkingOwner routes (authentication and management)
+    if (preg_match('#^/api/parking-owners(/.*)?$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+        
+        // Parse request body
+        $requestData = [];
+        if (in_array($requestMethod, ['POST', 'PUT'])) {
+            $input = getRequestBody();
+            $requestData = json_decode($input, true) ?? [];
+        }
+        
+        // Parse query parameters
+        $queryParams = $_GET;
+        
+        // Authentication routes (public)
+        if (preg_match('#^/api/parking-owners/(register|login)$#', $requestUri, $authMatches)) {
+            // Initialize dependencies
+            $pdo = require BASE_PATH . '/config/database.php';
+            
+            // Repository
+            $parkingOwnerRepository = new \App\Infrastructure\Persistence\Sql\ParkingOwnerRepository($pdo);
+            
+            // JWT Service
+            $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+            $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+            
+            // Use Cases
+            $registerUseCase = new \App\Application\UseCases\ParkingOwner\RegisterParkingOwnerUseCase($parkingOwnerRepository, $jwtService);
+            $loginUseCase = new \App\Application\UseCases\ParkingOwner\LoginParkingOwnerUseCase($parkingOwnerRepository, $jwtService);
+            
+            // Controller
+            $parkingOwnerController = new \App\Presenter\Http\Controllers\Api\ParkingOwnerController(
+                $registerUseCase,
+                $loginUseCase
+            );
+            
+            $action = $authMatches[1];
+            
+            if ($requestMethod === 'POST') {
+                if ($action === 'register') {
+                    $response = $parkingOwnerController->register($requestData);
+                } elseif ($action === 'login') {
+                    $response = $parkingOwnerController->login($requestData);
+                } else {
+                    http_response_code(404);
+                    $response = ['success' => false, 'error' => 'Endpoint not found', 'status' => 404];
+                }
+            } else {
+                http_response_code(405);
+                $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+            }
+            
+            http_response_code($response['status']);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+        
+        // Protected routes - require authentication
+        $jwtSecretKey = getenv('JWT_SECRET_KEY') ?: 'your-secret-key-change-in-production';
+        $jwtService = new \App\Infrastructure\Services\JwtService($jwtSecretKey);
+        $authMiddleware = new \App\Presenter\Http\Middleware\AuthenticationMiddleware($jwtService);
+        $authenticatedUser = $authMiddleware->authenticate();
+        
+        if ($authenticatedUser === null) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized', 'status' => 401]);
+            exit;
+        }
+        
+        // Parking management routes
+        if (preg_match('#^/api/parking-owners/([^/]+)/parkings(/.*)?$#', $requestUri, $parkingMatches)) {
+            $ownerId = $parkingMatches[1];
+            $parkingPath = $parkingMatches[2] ?? '';
+            
+            // Verify that the authenticated user is the owner
+            if ($authenticatedUser->getId() !== $ownerId) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Access forbidden', 'status' => 403]);
+                exit;
+            }
+            
+            // Initialize dependencies
+            $pdo = require BASE_PATH . '/config/database.php';
+            
+            $parkingRepository = new \App\Infrastructure\Persistence\Sql\ParkingRepository($pdo);
+            $parkingOwnerRepository = new \App\Infrastructure\Persistence\Sql\ParkingOwnerRepository($pdo);
+            $reservationRepository = new \App\Infrastructure\Persistence\Sql\ReservationRepository($pdo);
+            
+            // Use Cases
+            $createParkingUseCase = new \App\Application\UseCases\ParkingOwner\CreateParkingUseCase($parkingRepository, $parkingOwnerRepository);
+            $updateTarifsUseCase = new \App\Application\UseCases\ParkingOwner\UpdateParkingTarifsUseCase($parkingRepository);
+            $getAvailablePlacesUseCase = new \App\Application\UseCases\ParkingOwner\GetAvailablePlacesUseCase($parkingRepository);
+            $listReservationsUseCase = new \App\Application\UseCases\ParkingOwner\ListParkingReservationsUseCase($parkingRepository, $reservationRepository);
+            $calculateRevenueUseCase = new \App\Application\UseCases\ParkingOwner\CalculateMonthlyRevenueUseCase($parkingRepository, $reservationRepository);
+            
+            // Controller
+            $parkingController = new \App\Presenter\Http\Controllers\Api\ParkingManagementController(
+                $createParkingUseCase,
+                $updateTarifsUseCase,
+                $getAvailablePlacesUseCase,
+                $listReservationsUseCase,
+                $calculateRevenueUseCase
+            );
+            
+            // Route specific parking actions
+            if ($parkingPath === '' || $parkingPath === '/') {
+                // /api/parking-owners/{ownerId}/parkings
+                if ($requestMethod === 'POST') {
+                    $response = $parkingController->createParking($ownerId, $requestData);
+                } else {
+                    http_response_code(405);
+                    $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+                }
+            } elseif (preg_match('#^/([^/]+)/tarifs$#', $parkingPath, $tarifMatches)) {
+                // /api/parking-owners/{ownerId}/parkings/{parkingId}/tarifs
+                $parkingId = $tarifMatches[1];
+                if ($requestMethod === 'PUT') {
+                    $response = $parkingController->updateTarifs($ownerId, $parkingId, $requestData);
+                } else {
+                    http_response_code(405);
+                    $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+                }
+            } elseif (preg_match('#^/([^/]+)/availability$#', $parkingPath, $availMatches)) {
+                // /api/parking-owners/{ownerId}/parkings/{parkingId}/availability
+                $parkingId = $availMatches[1];
+                if ($requestMethod === 'GET') {
+                    $response = $parkingController->getAvailability($ownerId, $parkingId);
+                } else {
+                    http_response_code(405);
+                    $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+                }
+            } elseif (preg_match('#^/([^/]+)/reservations$#', $parkingPath, $resMatches)) {
+                // /api/parking-owners/{ownerId}/parkings/{parkingId}/reservations
+                $parkingId = $resMatches[1];
+                if ($requestMethod === 'GET') {
+                    $response = $parkingController->getReservations($ownerId, $parkingId, $queryParams);
+                } else {
+                    http_response_code(405);
+                    $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+                }
+            } elseif (preg_match('#^/([^/]+)/revenue$#', $parkingPath, $revMatches)) {
+                // /api/parking-owners/{ownerId}/parkings/{parkingId}/revenue
+                $parkingId = $revMatches[1];
+                if ($requestMethod === 'GET') {
+                    $response = $parkingController->getMonthlyRevenue($ownerId, $parkingId, $queryParams);
+                } else {
+                    http_response_code(405);
+                    $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+                }
+            } else {
+                http_response_code(404);
+                $response = ['success' => false, 'error' => 'Endpoint not found', 'status' => 404];
+            }
+            
+            http_response_code($response['status']);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+        
+        // Profile route
+        if (preg_match('#^/api/parking-owners/([^/]+)/profile$#', $requestUri, $profileMatches)) {
+            $ownerId = $profileMatches[1];
+            
+            if ($authenticatedUser->getId() !== $ownerId) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Access forbidden', 'status' => 403]);
+                exit;
+            }
+            
+            $parkingOwnerController = new \App\Presenter\Http\Controllers\Api\ParkingOwnerController(null, null);
+            
+            if ($requestMethod === 'GET') {
+                $response = $parkingOwnerController->getProfile($ownerId);
+            } else {
+                http_response_code(405);
+                $response = ['success' => false, 'error' => 'Method not allowed', 'status' => 405];
+            }
+            
+            http_response_code($response['status']);
+            echo json_encode($response, JSON_PRETTY_PRINT);
+            exit;
+        }
+        
+        // If no specific route matched
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Endpoint not found', 'status' => 404]);
+        exit;
+    }
+
     // API User routes (protected - authentication required)
     if (preg_match('#^/api/users(/.*)?$#', $requestUri, $matches)) {
         header('Content-Type: application/json');
