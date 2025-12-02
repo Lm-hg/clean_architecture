@@ -65,4 +65,27 @@ class OpeningHours
         }
         return true;
     }
+
+    /**
+     * Retourne tous les TimeSlot uniques de cet OpeningHours
+     * 
+     * @return TimeSlot[]
+     */
+    public function getAllSlots(): array
+    {
+        $uniqueSlots = [];
+        $seenSlots = [];
+        
+        foreach ($this->slotsByDay as $daySlots) {
+            foreach ($daySlots as $slot) {
+                $slotKey = spl_object_hash($slot);
+                if (!isset($seenSlots[$slotKey])) {
+                    $uniqueSlots[] = $slot;
+                    $seenSlots[$slotKey] = true;
+                }
+            }
+        }
+        
+        return $uniqueSlots;
+    }
 }
