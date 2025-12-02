@@ -262,4 +262,42 @@ class Stationnement
         }
         return $this->price->getAmount() + $this->penaltyAmount;
     }
+
+    /**
+     * Reconstitue un Stationnement depuis la base de données sans déclencher les validations du constructeur
+     */
+    public static function reconstitute(
+        string $id,
+        string $userId,
+        string $parkingId,
+        \DateTime $entryTime,
+        ?\DateTime $exitTime,
+        string $status,
+        ?Price $price,
+        bool $hasPenalty,
+        float $penaltyAmount,
+        \DateTime $createdAt,
+        \DateTime $updatedAt,
+        ?string $reservationId = null,
+        ?string $abonnementId = null
+    ): self {
+        $stationnement = new self(
+            $userId,
+            $parkingId,
+            $entryTime,
+            $createdAt,
+            $updatedAt,
+            $reservationId,
+            $abonnementId,
+            $id
+        );
+        
+        $stationnement->exitTime = $exitTime;
+        $stationnement->status = $status;
+        $stationnement->price = $price;
+        $stationnement->hasPenalty = $hasPenalty;
+        $stationnement->penaltyAmount = $penaltyAmount;
+        
+        return $stationnement;
+    }
 }
