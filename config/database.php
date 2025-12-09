@@ -12,7 +12,7 @@ try {
     $dbHost = getenv('DB_HOST') ?: 'localhost';
     $dbName = getenv('DB_NAME') ?: 'parking_db';
     $dbUser = getenv('DB_USER') ?: 'postgres';
-    $dbPassword = getenv('DB_PASSWORD') ?: '';
+    $dbPassword = getenv('DB_PASSWORD') ?: 'Gabie28';
     $dbPort = getenv('DB_PORT') ?: '5432';
 
     // Build PostgreSQL DSN (Data Source Name)

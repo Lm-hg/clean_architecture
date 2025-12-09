@@ -206,6 +206,325 @@ try {
         exit;
     }
 
+    // API Auth protected routes (require authentication)
+    if (preg_match('#^/api/auth/(me|logout)$#', $requestUri, $matches)) {
+        header('Content-Type: application/json');
+        
+        // TODO: Add JWT token validation here
+        
+        $action = $matches[1];
+        
+        if ($requestMethod === 'GET' && $action === 'me') {
+            // For now, return mock data - should validate JWT and return user info
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'user' => [
+                        'id' => '1',
+                        'firstName' => 'Admin',
+                        'name' => 'User',
+                        'email' => 'admin@parking.com',
+                        'role' => 'admin'
+                    ]
+                ],
+                'message' => 'User retrieved successfully'
+            ];
+            echo json_encode($response);
+        } elseif ($requestMethod === 'POST' && $action === 'logout') {
+            // Logout endpoint
+            $response = [
+                'status' => 'success',
+                'message' => 'Logged out successfully'
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    // API User routes (protected - require authentication)
+    if (preg_match('#^/api/user/reservations$#', $requestUri)) {
+        header('Content-Type: application/json');
+        
+        // TODO: Add JWT token validation here
+        
+        if ($requestMethod === 'GET') {
+            // Return user reservations
+            $response = [
+                'status' => 'success',
+                'data' => [], // Empty for now - should fetch from database
+                'message' => 'Reservations retrieved successfully'
+            ];
+            echo json_encode($response);
+        } elseif ($requestMethod === 'POST') {
+            // Create new reservation
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'id' => uniqid(),
+                    'userId' => 'user123',
+                    'parkingId' => $_POST['parkingId'] ?? '',
+                    'startTime' => $_POST['startTime'] ?? '',
+                    'endTime' => $_POST['endTime'] ?? '',
+                    'status' => 'pending',
+                    'totalPrice' => 0,
+                    'createdAt' => date('Y-m-d H:i:s'),
+                    'updatedAt' => date('Y-m-d H:i:s')
+                ],
+                'message' => 'Reservation created successfully'
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    if (preg_match('#^/api/user/subscriptions$#', $requestUri)) {
+        header('Content-Type: application/json');
+        
+        // TODO: Add JWT token validation here
+        
+        if ($requestMethod === 'GET') {
+            // Return user subscriptions
+            $response = [
+                'status' => 'success',
+                'data' => [], // Empty for now - should fetch from database
+                'message' => 'Subscriptions retrieved successfully'
+            ];
+            echo json_encode($response);
+        } elseif ($requestMethod === 'POST') {
+            // Create new subscription
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'id' => uniqid(),
+                    'message' => 'Subscription created successfully'
+                ]
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    // API Owner routes (simplified - require authentication)
+    if (preg_match('#^/api/owner/parkings$#', $requestUri)) {
+        header('Content-Type: application/json');
+        
+        try {
+            // Include database configuration
+            $pdo = require __DIR__ . '/../config/database.php';
+            
+            if ($requestMethod === 'GET') {
+                // Return owner's parkings - for now return all parkings
+                $stmt = $pdo->prepare("
+                    SELECT p.*, 
+                           (SELECT COUNT(*) FROM reservations r WHERE r.parking_id = p.id AND r.status = 'confirmed') as occupied_spaces
+                    FROM parkings p 
+                    ORDER BY p.created_at DESC
+                ");
+                $stmt->execute();
+                $parkings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Format data for frontend
+                $formattedParkings = array_map(function($parking) {
+                    return [
+                        'id' => $parking['id'],
+                        'title' => $parking['title'] ?? 'Parking sans nom',
+                        'description' => $parking['description'] ?? '',
+                        'address' => [
+                            'street' => $parking['address'] ?? 'Adresse non définie',
+                            'city' => $parking['city'] ?? 'Ville',
+                            'postalCode' => $parking['postal_code'] ?? '00000',
+                            'country' => 'France' // Valeur par défaut car non stockée en DB
+                        ],
+                        'coordinates' => [
+                            'latitude' => (float)($parking['latitude'] ?? 0),
+                            'longitude' => (float)($parking['longitude'] ?? 0)
+                        ],
+                        'totalSpots' => (int)($parking['total_spots'] ?? 0),
+                        'availableSpaces' => max(0, (int)($parking['total_spots'] ?? 0) - (int)($parking['occupied_spaces'] ?? 0)),
+                        'tarifs' => [
+                            'hourly' => (float)($parking['price_per_hour'] ?? 2.0),
+                            'daily' => (float)($parking['price_per_hour'] ?? 2.0) * 8, // Estimation
+                            'monthly' => (float)($parking['price_per_hour'] ?? 2.0) * 160 // Estimation
+                        ],
+                        'openingHours' => json_decode($parking['opening_hours'] ?? '{}', true),
+                        'isAlwaysOpen' => true, // Valeur par défaut car non stockée en DB
+                        'createdAt' => $parking['created_at'] ?? date('Y-m-d H:i:s'),
+                        'updatedAt' => $parking['updated_at'] ?? date('Y-m-d H:i:s')
+                    ];
+                }, $parkings);
+                
+                $response = [
+                    'status' => 'success',
+                    'data' => $formattedParkings,
+                    'message' => 'Parkings retrieved successfully'
+                ];
+                echo json_encode($response);
+            } elseif ($requestMethod === 'POST') {
+                // Create new parking
+                $input = json_decode(file_get_contents('php://input'), true);
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO parkings (
+                        id, owner_id, title, description, address, city, postal_code,
+                        latitude, longitude, total_spots, price_per_hour, 
+                        opening_hours, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ");
+                
+                // Générer un UUID valide
+                $id = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+                    mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+                    mt_rand(0, 0xffff),
+                    mt_rand(0, 0x0fff) | 0x4000,
+                    mt_rand(0, 0x3fff) | 0x8000,
+                    mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+                );
+                $stmt->execute([
+                    $id,
+                    '9ea4d0a3-2f69-414f-96ba-6ed2adbc358c', // admin@parking.com - TODO: get from JWT
+                    $input['title'] ?? 'Nouveau Parking',
+                    $input['description'] ?? '',
+                    $input['address']['street'] ?? '',
+                    $input['address']['city'] ?? '',
+                    $input['address']['postalCode'] ?? '',
+                    $input['coordinates']['latitude'] ?? 0,
+                    $input['coordinates']['longitude'] ?? 0,
+                    $input['totalSpots'] ?? 10,
+                    $input['tarifs']['hourly'] ?? 2.0,
+                    json_encode($input['openingHours'] ?? [])
+                ]);
+                
+                $response = [
+                    'status' => 'success',
+                    'data' => [
+                        'id' => $id,
+                        'title' => $input['title'] ?? 'Nouveau Parking',
+                        'message' => 'Parking created successfully'
+                    ],
+                    'message' => 'Parking created successfully'
+                ];
+                echo json_encode($response);
+            } else {
+                http_response_code(405);
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Method not allowed'
+                ];
+                echo json_encode($response);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            $response = [
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    // API Owner parking specific routes
+    if (preg_match('#^/api/owner/parkings/([^/]+)/reservations$#', $requestUri, $matches)) {
+        $parkingId = $matches[1];
+        header('Content-Type: application/json');
+        
+        if ($requestMethod === 'GET') {
+            $response = [
+                'status' => 'success',
+                'data' => [], // Empty for now - should fetch parking reservations from database
+                'message' => 'Parking reservations retrieved successfully'
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    if (preg_match('#^/api/owner/parkings/([^/]+)/stationnements$#', $requestUri, $matches)) {
+        $parkingId = $matches[1];
+        header('Content-Type: application/json');
+        
+        if ($requestMethod === 'GET') {
+            $response = [
+                'status' => 'success',
+                'data' => [], // Empty for now - should fetch parking stationnements from database
+                'message' => 'Parking stationnements retrieved successfully'
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    if (preg_match('#^/api/owner/parkings/([^/]+)/subscription-types$#', $requestUri, $matches)) {
+        $parkingId = $matches[1];
+        header('Content-Type: application/json');
+        
+        if ($requestMethod === 'GET') {
+            $response = [
+                'status' => 'success',
+                'data' => [], // Empty for now - should fetch parking subscription types from database
+                'message' => 'Subscription types retrieved successfully'
+            ];
+            echo json_encode($response);
+        } elseif ($requestMethod === 'POST') {
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'id' => uniqid(),
+                    'parkingId' => $parkingId,
+                    'name' => $_POST['name'] ?? 'New Subscription',
+                    'price' => $_POST['price'] ?? 0,
+                    'isActive' => true
+                ],
+                'message' => 'Subscription type created successfully'
+            ];
+            echo json_encode($response);
+        } else {
+            http_response_code(405);
+            $response = [
+                'status' => 'error',
+                'message' => 'Method not allowed'
+            ];
+            echo json_encode($response);
+        }
+        exit;
+    }
+
     // API ParkingOwner routes (authentication and management)
     if (preg_match('#^/api/parking-owners(/.*)?$#', $requestUri, $matches)) {
         header('Content-Type: application/json');

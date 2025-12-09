@@ -1,0 +1,24 @@
+[
+  {
+    "log_id": "log_001",
+    "timestamp": "2025-12-04T10:00:00Z",
+    "level": "info",
+    "message": "System initialized successfully",
+    "context": {
+      "module": "initialization",
+      "user_id": null,
+      "ip_address": "127.0.0.1"
+    }
+  },
+  {
+    "log_id": "log_002",
+    "timestamp": "2025-12-04T10:05:00Z",
+    "level": "info",
+    "message": "User login successful",
+    "context": {
+      "module": "authentication",
+      "user_id": "user_001",
+      "ip_address": "192.168.1.100"
+    }
+  }
+]
