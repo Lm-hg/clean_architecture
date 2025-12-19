@@ -5,32 +5,12 @@ export interface Parking {
   ownerId: string;
   title: string;
   description?: string;
-  address: {
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
+  latitude: number;
+  longitude: number;
   totalSpots: number;
   availableSpaces: number;
-  tarifs: {
-    hourly: number;
-    daily?: number;
-    monthly?: number;
-  };
-  openingHours: {
-    monday?: { open: string; close: string; };
-    tuesday?: { open: string; close: string; };
-    wednesday?: { open: string; close: string; };
-    thursday?: { open: string; close: string; };
-    friday?: { open: string; close: string; };
-    saturday?: { open: string; close: string; };
-    sunday?: { open: string; close: string; };
-  };
+  pricePerHour: number;
+  openingHours: Record<string, any>;
   isAlwaysOpen?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -39,12 +19,6 @@ export interface Parking {
 export interface CreateParkingRequest {
   title: string;
   description?: string;
-  address: {
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
   coordinates: {
     latitude: number;
     longitude: number;
@@ -52,23 +26,18 @@ export interface CreateParkingRequest {
   totalSpots: number;
   tarifs: {
     hourly: number;
-    daily?: number;
-    monthly?: number;
   };
-  openingHours: {
-    monday?: { open: string; close: string; };
-    tuesday?: { open: string; close: string; };
-    wednesday?: { open: string; close: string; };
-    thursday?: { open: string; close: string; };
-    friday?: { open: string; close: string; };
-    saturday?: { open: string; close: string; };
-    sunday?: { open: string; close: string; };
-  };
-  isAlwaysOpen?: boolean;
+  openingHours: Record<string, any>;
 }
 
-export interface UpdateParkingRequest extends Partial<CreateParkingRequest> {
+export interface UpdateParkingRequest {
   id: string;
+  title?: string;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
+  totalSpots?: number;
+  pricePerHour?: number;
 }
 
 export interface SearchParkingsRequest {
@@ -81,8 +50,10 @@ export interface SearchParkingsRequest {
 }
 
 export class ParkingService {
-  async getAllParkings(): Promise<Parking[]> {
-    return apiClient.get<Parking[]>('/parkings');
+  // Pour utilisateurs: lister tous les parkings disponibles
+  async getAvailableParkings(): Promise<Parking[]> {
+    const response = await apiClient.get<{status: string, data: Parking[], message: string}>('/parkings');
+    return response.data;
   }
 
   async searchParkings(criteria: SearchParkingsRequest): Promise<Parking[]> {
@@ -95,7 +66,7 @@ export class ParkingService {
     });
 
     const queryString = params.toString();
-    const endpoint = queryString ? `/parkings/search?${queryString}` : '/parkings/search';
+    const endpoint = queryString ? `/parkings/search?${queryString}` : '/parkings';
     
     return apiClient.get<Parking[]>(endpoint);
   }
@@ -105,6 +76,7 @@ export class ParkingService {
     return response.data;
   }
 
+  // Pour propriétaires: lister MES parkings
   async getMyParkings(): Promise<Parking[]> {
     const response = await apiClient.get<{status: string, data: Parking[], message: string}>('/owner/parkings');
     return response.data;
@@ -126,9 +98,10 @@ export class ParkingService {
   }
 
   async getParkingAvailability(id: string, startTime: string, endTime: string): Promise<{ available: boolean; availableSpaces: number }> {
-    return apiClient.get<{ available: boolean; availableSpaces: number }>(
+    const response = await apiClient.get<{status: string, data: { available: boolean; availableSpaces: number }, message: string}>(
       `/parkings/${id}/availability?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`
     );
+    return response.data;
   }
 }
 

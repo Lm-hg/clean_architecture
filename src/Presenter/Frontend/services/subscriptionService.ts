@@ -5,8 +5,10 @@ export interface SubscriptionType {
   parkingId: string;
   name: string;
   description?: string;
+  benefits?: string[];
   price: number;
-  duration: number; // en jours
+  durationDays: number; // en jours
+  duration?: number; // alias pour compatibilité
   timeSlots: {
     dayOfWeek: number; // 0 = dimanche, 1 = lundi, etc.
     startTime: string;
@@ -35,9 +37,10 @@ export interface CreateSubscriptionTypeRequest {
   parkingId: string;
   name: string;
   description?: string;
+  benefits?: string[];  // Tableau d'avantages
   price: number;
   duration: number; // en jours
-  timeSlots: {
+  timeSlots?: {
     dayOfWeek: number;
     startTime: string;
     endTime: string;
@@ -69,7 +72,8 @@ export class SubscriptionService {
   }
 
   async updateSubscriptionType(parkingId: string, id: string, data: Partial<CreateSubscriptionTypeRequest>): Promise<SubscriptionType> {
-    return apiClient.put<SubscriptionType>(`/owner/parkings/${parkingId}/subscription-types/${id}`, data);
+    const response = await apiClient.put<{status: string, data: SubscriptionType, message: string}>(`/owner/parkings/${parkingId}/subscription-types/${id}`, data);
+    return response.data;
   }
 
   async deleteSubscriptionType(parkingId: string, id: string): Promise<void> {
@@ -77,12 +81,18 @@ export class SubscriptionService {
   }
 
   async toggleSubscriptionType(parkingId: string, id: string): Promise<SubscriptionType> {
-    return apiClient.put<SubscriptionType>(`/owner/parkings/${parkingId}/subscription-types/${id}/toggle`);
+    const response = await apiClient.put<{status: string, data: SubscriptionType, message: string}>(`/owner/parkings/${parkingId}/subscription-types/${id}/toggle`);
+    return response.data;
   }
 
   // Gestion des abonnements utilisateurs
   async getAvailableSubscriptionTypes(parkingId: string): Promise<SubscriptionType[]> {
-    return apiClient.get<SubscriptionType[]>(`/parkings/${parkingId}/subscription-types`);
+    const response = await apiClient.get<{status: string, data: SubscriptionType[], message: string}>(`/parkings/${parkingId}/abonnements`);
+    // Mapper durationDays vers duration pour compatibilité
+    return (response.data || []).map(type => ({
+      ...type,
+      duration: type.durationDays || type.duration
+    }));
   }
 
   async getUserSubscriptions(filters?: SubscriptionListFilters): Promise<Subscription[]> {
@@ -122,12 +132,12 @@ export class SubscriptionService {
   }
 
   async createSubscription(data: CreateSubscriptionRequest): Promise<Subscription> {
-    const response = await apiClient.post<{status: string, data: Subscription, message: string}>('/user/subscriptions', data);
+    const response = await apiClient.post<{status: string, data: Subscription, message: string}>('/abonnements', data);
     return response.data;
   }
 
   async getSubscription(id: string): Promise<Subscription> {
-    const response = await apiClient.get<{status: string, data: Subscription, message: string}>(`/subscriptions/${id}`);
+    const response = await apiClient.get<{status: string, data: Subscription, message: string}>(`/abonnements/${id}`);
     return response.data;
   }
 
@@ -140,9 +150,10 @@ export class SubscriptionService {
     if (startDate) params.append('startDate', startDate);
     
     const queryString = params.toString();
-    const endpoint = queryString ? `/subscription-types/${subscriptionTypeId}/check-availability?${queryString}` : `/subscription-types/${subscriptionTypeId}/check-availability`;
+    const endpoint = queryString ? `/abonnements/${subscriptionTypeId}/check-availability?${queryString}` : `/abonnements/${subscriptionTypeId}/check-availability`;
     
-    return apiClient.get<{ available: boolean; message?: string }>(endpoint);
+    const response = await apiClient.get<{status: string, data: { available: boolean; message?: string }, message: string}>(endpoint);
+    return response.data;
   }
 }
 

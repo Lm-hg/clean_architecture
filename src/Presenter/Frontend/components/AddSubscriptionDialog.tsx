@@ -55,7 +55,7 @@ export function AddSubscriptionDialog({ open, onOpenChange, parkingId, onSuccess
         name: formData.name,
         price: parseFloat(formData.price) || 0,
         duration: parseInt(formData.duration) || 30,
-        description: formData.benefits.filter(b => b.trim()).join(', ') || '',
+        benefits: formData.benefits.filter(b => b.trim()),
         isActive: true
       });
     });

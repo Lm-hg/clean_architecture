@@ -3,33 +3,12 @@ export interface Parking {
   ownerId: string;
   title: string;
   description?: string;
-  address: {
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
+  latitude: number;
+  longitude: number;
   totalSpots: number;
   availableSpaces: number;
-  tarifs: {
-    hourly: number;
-    daily?: number;
-    monthly?: number;
-  };
-  openingHours: {
-    monday?: { open: string; close: string; };
-    tuesday?: { open: string; close: string; };
-    wednesday?: { open: string; close: string; };
-    thursday?: { open: string; close: string; };
-    friday?: { open: string; close: string; };
-    saturday?: { open: string; close: string; };
-    sunday?: { open: string; close: string; };
-  };
-  isAlwaysOpen?: boolean;
+  pricePerHour: number;
+  openingHours: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,8 +28,13 @@ export interface Reservation {
   userEmail?: string;
   startTime: string;
   endTime: string;
-  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
   totalPrice: number;
+  penalty?: number;
+  overstayDuration?: number;
+  stationnementId?: string;
+  entryTime?: string;
+  exitTime?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,12 +49,17 @@ export interface Stationnement {
   entryTime: string;
   exitTime?: string;
   reservationId?: string;
+  abonnementId?: string;
+  subscriptionId?: string;
   price?: {
     amount: number;
     currency: string;
   };
+  totalPrice?: number;
   hasPenalty?: boolean;
   penaltyAmount?: number;
+  penalty?: number;
+  isAuthorized?: boolean;
   status: 'active' | 'completed' | 'violation';
   createdAt: string;
   updatedAt: string;
@@ -81,9 +70,11 @@ export interface SubscriptionType {
   parkingId: string;
   name: string;
   description?: string;
+  benefits?: string[];  // Tableau d'avantages
   price: number;
-  duration: number; // en jours
-  timeSlots: {
+  durationDays: number; // en jours
+  duration?: number; // alias pour compatibilité
+  timeSlots?: {
     dayOfWeek: number; // 0 = dimanche, 1 = lundi, etc.
     startTime: string;
     endTime: string;

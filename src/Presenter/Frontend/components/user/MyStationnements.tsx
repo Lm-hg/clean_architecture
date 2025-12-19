@@ -11,9 +11,32 @@ export function MyStationnements() {
     loading, 
     error 
   } = useApi<Stationnement[]>(() => stationnementService.getUserStationnements());
+
+  if (loading) {
+    return (
+      <div className="p-8 flex justify-center items-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center text-red-600">
+              <AlertTriangle className="size-12 mx-auto mb-4" />
+              <p>Erreur lors du chargement des stationnements</p>
+              <p className="text-sm mt-2">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   const stationnements = userStationnements || [];
-
   const activeStationnements = stationnements.filter((s) => !s.exitTime);
   const completedStationnements = stationnements.filter((s) => s.exitTime);
 
@@ -42,7 +65,7 @@ export function MyStationnements() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 mb-1">Total des stationnements</p>
-                <p className="text-gray-900">{userStationnements.length}</p>
+                <p className="text-gray-900">{stationnements.length}</p>
               </div>
               <Calendar className="size-8 text-indigo-600" />
             </div>
@@ -51,7 +74,7 @@ export function MyStationnements() {
       </div>
 
       <div className="space-y-4">
-        {userStationnements.length === 0 ? (
+        {stationnements.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <Car className="size-12 mx-auto mb-4 text-gray-400" />
@@ -59,7 +82,7 @@ export function MyStationnements() {
             </CardContent>
           </Card>
         ) : (
-          userStationnements.map((stationnement) => (
+          stationnements.map((stationnement) => (
             <Card key={stationnement.id}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -80,10 +103,10 @@ export function MyStationnements() {
                   </div>
                   {stationnement.totalPrice && (
                     <div className="text-right">
-                      <p className="text-gray-900">{stationnement.totalPrice.toFixed(2)} €</p>
+                      <p className="text-gray-900">{(stationnement.totalPrice || 0).toFixed(2)} €</p>
                       {stationnement.penalty && (
                         <p className="text-red-600">
-                          dont {stationnement.penalty.toFixed(2)} € de pénalité
+                          dont {(stationnement.penalty || 0).toFixed(2)} € de pénalité
                         </p>
                       )}
                     </div>

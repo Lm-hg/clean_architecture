@@ -2,33 +2,59 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { reservationService } from '../../services';
+import { reservationService, stationnementService } from '../../services';
 import { useApi } from '../../hooks/useApi';
 import type { Reservation } from '../../types';
-import { Calendar, MapPin, Clock, Euro, LogIn, LogOut as LogOutIcon, FileText, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Clock, Euro, LogIn, LogOut as LogOutIcon, FileText, Loader2, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { InvoiceDialog } from './InvoiceDialog';
 
 export function MyReservationsPage() {
   const [selectedReservationId, setSelectedReservationId] = useState<string | null>(null);
+  const [startingReservationId, setStartingReservationId] = useState<string | null>(null);
+  const [exitingReservationId, setExitingReservationId] = useState<string | null>(null);
   
   const { 
     data: userReservations, 
     loading, 
-    error 
+    error,
+    execute: fetchReservations
   } = useApi<Reservation[]>(() => reservationService.getUserReservations());
 
   const reservations = userReservations || [];
   const activeReservations = reservations.filter((r) => r.status === 'active');
   const completedReservations = reservations.filter((r) => r.status === 'completed');
   const pendingReservations = reservations.filter((r) => r.status === 'pending');
+  const confirmedReservations = reservations.filter((r) => r.status === 'confirmed');
+
+  const handleStartStationnement = async (reservationId: string) => {
+    setStartingReservationId(reservationId);
+    try {
+      await stationnementService.startFromReservation(reservationId);
+      toast.success('Stationnement démarré avec succès!');
+      await fetchReservations();
+    } catch (error) {
+      toast.error('Erreur lors du démarrage du stationnement');
+    } finally {
+      setStartingReservationId(null);
+    }
+  };
 
   const handleEnterParking = (reservationId: string) => {
     toast.success('Entrée enregistrée avec succès !');
   };
 
-  const handleExitParking = (reservationId: string) => {
-    toast.success('Sortie enregistrée avec succès !');
+  const handleExitParking = async (stationnementId: string) => {
+    setExitingReservationId(stationnementId);
+    try {
+      await stationnementService.endStationnement({ stationnementId });
+      toast.success('Sortie du parking enregistrée avec succès!');
+      await fetchReservations();
+    } catch (error) {
+      toast.error('Erreur lors de la sortie du parking');
+    } finally {
+      setExitingReservationId(null);
+    }
   };
 
   if (loading) {
@@ -54,6 +80,8 @@ export function MyReservationsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'confirmed':
+        return <Badge className="bg-indigo-500">Confirmée</Badge>;
       case 'active':
         return <Badge className="bg-blue-500">En cours</Badge>;
       case 'completed':
@@ -74,7 +102,16 @@ export function MyReservationsPage() {
         <p className="text-gray-600">Gérez vos réservations de parking</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-gray-600">Confirmées</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-gray-900">{confirmedReservations.length}</div>
+          </CardContent>
+        </Card>
+        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-gray-600">En cours</CardTitle>
@@ -112,7 +149,7 @@ export function MyReservationsPage() {
             </CardContent>
           </Card>
         ) : (
-          userReservations.map((reservation) => (
+          reservations.map((reservation) => (
             <Card key={reservation.id}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -127,7 +164,7 @@ export function MyReservationsPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-gray-900">{reservation.price.toFixed(2)} €</p>
+                    <p className="text-gray-900">{reservation.totalPrice?.toFixed(2) ?? '0.00'} €</p>
                     {reservation.penalty && (
                       <p className="text-red-600">+ {reservation.penalty.toFixed(2)} € (pénalité)</p>
                     )}
@@ -156,7 +193,7 @@ export function MyReservationsPage() {
                   </div>
                 </div>
 
-                {(reservation.hasEntered || reservation.entryTime) && (
+                {reservation.entryTime && (
                   <div className="bg-blue-50 rounded-lg p-3 mb-4">
                     <div className="flex items-center justify-between text-blue-900">
                       <div className="flex items-center">
@@ -179,24 +216,56 @@ export function MyReservationsPage() {
                 )}
 
                 <div className="flex gap-2">
-                  {reservation.status === 'active' && !reservation.hasEntered && (
+                  {(() => {
+                    console.log('🔍 Reservation Debug:', {
+                      id: reservation.id,
+                      status: reservation.status,
+                      stationnementId: reservation.stationnementId,
+                      entryTime: reservation.entryTime,
+                      isConfirmed: reservation.status === 'confirmed',
+                      isActive: reservation.status === 'active',
+                      hasStationnementId: !!reservation.stationnementId
+                    });
+                    return null;
+                  })()}
+                  {reservation.status === 'confirmed' && (
                     <Button
-                      onClick={() => handleEnterParking(reservation.id)}
-                      className="flex-1"
+                      onClick={() => handleStartStationnement(reservation.id)}
+                      disabled={startingReservationId === reservation.id}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700"
                     >
-                      <LogIn className="size-4 mr-2" />
-                      Entrer dans le parking
+                      {startingReservationId === reservation.id ? (
+                        <>
+                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          Démarrage...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="size-4 mr-2" />
+                          Démarrer le stationnement
+                        </>
+                      )}
                     </Button>
                   )}
 
-                  {reservation.status === 'active' && reservation.hasEntered && !reservation.exitTime && (
+                  {reservation.status === 'active' && reservation.stationnementId && (
                     <Button
-                      onClick={() => handleExitParking(reservation.id)}
+                      onClick={() => handleExitParking(reservation.stationnementId!)}
+                      disabled={exitingReservationId === reservation.stationnementId}
                       variant="outline"
                       className="flex-1"
                     >
-                      <LogOutIcon className="size-4 mr-2" />
-                      Sortir du parking
+                      {exitingReservationId === reservation.stationnementId ? (
+                        <>
+                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          Sortie...
+                        </>
+                      ) : (
+                        <>
+                          <LogOutIcon className="size-4 mr-2" />
+                          Sortir du parking
+                        </>
+                      )}
                     </Button>
                   )}
 

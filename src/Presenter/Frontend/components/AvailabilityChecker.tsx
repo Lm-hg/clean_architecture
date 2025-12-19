@@ -68,13 +68,13 @@ export function AvailabilityChecker({ parking }: AvailabilityCheckerProps) {
                   {new Date(selectedDate + 'T' + selectedTime).toLocaleString('fr-FR')}
                 </p>
                 <div className="text-indigo-600">
-                  {availableSpaces} / {parking.totalSpaces} places
+                  {availableSpaces} / {parking.totalSpots} places
                 </div>
                 <div className="mt-4 w-full bg-gray-200 rounded-full h-3">
                   <div
                     className="bg-indigo-600 h-3 rounded-full transition-all"
                     style={{
-                      width: `${(availableSpaces / parking.totalSpaces) * 100}%`,
+                      width: `${(availableSpaces / parking.totalSpots) * 100}%`,
                     }}
                   />
                 </div>
@@ -91,12 +91,12 @@ export function AvailabilityChecker({ parking }: AvailabilityCheckerProps) {
               </div>
               <div className="flex justify-between">
                 <span>Tarif horaire:</span>
-                <span className="text-gray-900">{parking.tarifs.hourly.toFixed(2)} €</span>
+                <span className="text-gray-900">{(parking.pricePerHour || 0).toFixed(2)} €/h</span>
               </div>
               <div className="flex justify-between">
                 <span>Horaires d'ouverture:</span>
                 <span className="text-gray-900">
-                  {parking.isAlwaysOpen ? '24h/24' : 'Voir détails'}
+                  {parking.openingHours && Object.keys(parking.openingHours).length > 0 ? 'Voir détails' : '24h/24'}
                 </span>
               </div>
             </div>

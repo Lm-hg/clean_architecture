@@ -4,6 +4,11 @@
  * Ensures all required classes are loaded
  */
 
+// Define BASE_PATH for tests
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', dirname(__DIR__));
+}
+
 // Load Composer autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 

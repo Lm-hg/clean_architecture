@@ -47,13 +47,13 @@ class UpdateUserUseCaseTest extends TestCase
         
         // Arrange: Créer le DTO de mise à jour
         $newPassword = new Password('newpassword123');
-        $newRole = new Role('admin');
+        $newRole = new Role('parking_owner');
         $updateUserDto = new UpdateUserDto('Jane', 'Doe', $newPassword, $newRole);
         
         // Arrange: Créer l'utilisateur mis à jour qui sera retourné
         $updatedUser = new User(
             $userId,
-            'admin',
+            'parking_owner',
             'Jane',
             'Doe',
             'test@example.com', // L'email reste le même
@@ -81,7 +81,7 @@ class UpdateUserUseCaseTest extends TestCase
         $this->assertInstanceOf(UserReponseDto::class, $result);
         $this->assertEquals('Jane', $result->firstName);
         $this->assertEquals('Doe', $result->name);
-        $this->assertEquals('admin', $result->role->getRole());
+        $this->assertEquals('parking_owner', $result->role->getRole());
         $this->assertEquals('test@example.com', $result->email->getEmail()); // Email inchangé
     }
 
@@ -90,7 +90,7 @@ class UpdateUserUseCaseTest extends TestCase
         // Arrange
         $userId = 'non-existent-id';
         $password = new Password('newpassword123');
-        $role = new Role('admin');
+        $role = new Role('user');
         $updateUserDto = new UpdateUserDto('Jane', 'Doe', $password, $role);
         
         // Arrange: Configurer le mock pour retourner null

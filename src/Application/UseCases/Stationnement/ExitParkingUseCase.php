@@ -72,21 +72,34 @@ class ExitParkingUseCase
             throw new EntityNotFoundException("Parking non trouvé");
         }
 
-        // 5. Calculer le prix avec le PricingService
-        $price = $this->pricingService->calculateParkingPrice($stationnement, $parking, $exitTime);
-
-        // 6. Vérifier et calculer les pénalités si nécessaire
+        // 5. Récupérer la réservation/abonnement si existant
         $reservation = null;
         $abonnement = null;
         
+        error_log("ExitParkingUseCase: hasReservation() = " . ($stationnement->hasReservation() ? 'true' : 'false'));
         if ($stationnement->hasReservation()) {
+            error_log("ExitParkingUseCase: reservationId = " . $stationnement->getReservationId());
             $reservation = $this->reservationRepository->findById($stationnement->getReservationId());
+            error_log("ExitParkingUseCase: reservation found = " . ($reservation !== null ? 'yes' : 'no'));
         }
         
         if ($stationnement->hasAbonnement()) {
             $abonnement = $this->abonnementRepository->findById($stationnement->getAbonnementId());
         }
 
+        // 6. Calculer le prix avec le PricingService
+        // Si une réservation existe, utiliser ses horaires pour le calcul
+        if ($reservation !== null) {
+            $price = $this->pricingService->calculateReservationPrice($parking, $reservation->getStartTime(), $reservation->getEndTime());
+            error_log("ExitParkingUseCase: Using reservation hours for pricing");
+        } else {
+            $price = $this->pricingService->calculateParkingPrice($stationnement, $parking, $exitTime);
+            error_log("ExitParkingUseCase: Using actual parking duration for pricing");
+        }
+
+        // 7. Vérifier et calculer les pénalités si nécessaire
+
+        // 7. Vérifier et calculer les pénalités si nécessaire
         // Calculer la pénalité avec le PenaltyCalculator
         // Note: Pour l'abonnement, on devrait calculer le slotEndTime, mais pour simplifier on utilise la fin de l'abonnement
         $abonnementSlotEndTime = $abonnement !== null ? $abonnement->getEndDate() : null;
@@ -101,18 +114,32 @@ class ExitParkingUseCase
             $stationnement->applyPenalty($penaltyAmount);
         }
 
-        // 7. Enregistrer la sortie
+        // 8. Enregistrer la sortie
         $stationnement->exit($exitTime);
         $stationnement->setPrice($price);
 
-        // 8. Incrémenter le nombre de places disponibles
+        // 9. Incrémenter le nombre de places disponibles
         // Vérifier que le parking n'a pas déjà toutes ses places disponibles
         if ($parking->getAvailableSpots() < $parking->getTotalSpots()) {
             $parking->incrementAvailableSpots();
             $this->parkingRepository->save($parking);
         }
 
-        // 9. Sauvegarder le stationnement
+        // 10. Mettre à jour la réservation à "completed" si elle existe
+        error_log("ExitParkingUseCase: reservation = " . ($reservation !== null ? 'exists' : 'null'));
+        if ($reservation !== null) {
+            error_log("ExitParkingUseCase: reservation status = " . $reservation->getStatus());
+            error_log("ExitParkingUseCase: isActive() = " . ($reservation->isActive() ? 'true' : 'false'));
+        }
+        if ($reservation !== null && $reservation->isActive()) {
+            error_log("ExitParkingUseCase: Calling reservation->complete()");
+            $reservation->complete();
+            $reservation->setPrice($price);
+            $this->reservationRepository->save($reservation);
+            error_log("ExitParkingUseCase: Reservation completed and saved");
+        }
+
+        // 11. Sauvegarder le stationnement
         return $this->stationnementRepository->save($stationnement);
     }
 }

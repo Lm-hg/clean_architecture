@@ -9,10 +9,15 @@ export interface Reservation {
   userEmail?: string;
   startTime: string;
   endTime: string;
-  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
   totalPrice: number;
   createdAt: string;
   updatedAt: string;
+  stationnementId?: string;
+  entryTime?: string;
+  exitTime?: string;
+  penalty?: number;
+  overstayDuration?: number;
 }
 
 export interface CreateReservationRequest {
@@ -78,28 +83,38 @@ export class ReservationService {
   }
 
   async getReservationById(id: string): Promise<Reservation> {
-    return apiClient.get<Reservation>(`/reservations/${id}`);
+    const response = await apiClient.get<{status: string, data: Reservation, message: string}>(`/reservations/${id}`);
+    return response.data;
   }
 
   async createReservation(data: CreateReservationRequest): Promise<Reservation> {
-    return apiClient.post<Reservation>('/reservations', data);
+    const response = await apiClient.post<{status: string, data: Reservation, message: string}>('/reservations', data);
+    return response.data;
   }
 
   async updateReservation(data: UpdateReservationRequest): Promise<Reservation> {
     const { id, ...updateData } = data;
-    return apiClient.put<Reservation>(`/reservations/${id}`, updateData);
+    const response = await apiClient.put<{status: string, data: Reservation, message: string}>(`/reservations/${id}`, updateData);
+    return response.data;
   }
 
   async cancelReservation(id: string): Promise<void> {
     return apiClient.put<void>(`/reservations/${id}/cancel`);
   }
 
+  async confirmReservation(id: string): Promise<Reservation> {
+    const response = await apiClient.put<{status: string, data: Reservation, message: string}>(`/owner/reservations/${id}/confirm`);
+    return response.data;
+  }
+
   async generateInvoice(reservationId: string): Promise<any> {
-    return apiClient.get<any>(`/reservations/${reservationId}/invoice`);
+    const response = await apiClient.get<{status: string, data: any, message: string}>(`/reservations/${reservationId}/invoice`);
+    return response.data;
   }
 
   async checkReservationPrice(data: CreateReservationRequest): Promise<{ price: number; duration: number }> {
-    return apiClient.post<{ price: number; duration: number }>('/reservations/check-price', data);
+    const response = await apiClient.post<{status: string, data: { price: number; duration: number }, message: string}>('/reservations/check-price', data);
+    return response.data;
   }
 }
 

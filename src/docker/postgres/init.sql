@@ -49,7 +49,7 @@ END $$;
 -- Using VARCHAR(36) for UUID string format
 CREATE TABLE users (
     id VARCHAR(36) PRIMARY KEY,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'ownerParking')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'parking_owner')),
     first_name VARCHAR(255) NOT NULL CHECK (char_length(first_name) >= 2),
     name VARCHAR(255) NOT NULL CHECK (char_length(name) >= 2),
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -172,11 +172,34 @@ CREATE TABLE stationnements (
     CONSTRAINT chk_penalties_positive CHECK (penalties >= 0)
 );
 
--- Abonnements table (subscriptions)
+-- Subscription Types table (types d'abonnements disponibles pour chaque parking)
+CREATE TABLE subscription_types (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parking_id UUID NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    benefits TEXT,  -- JSON array stocké comme texte: ["Avantage 1", "Avantage 2"]
+    price DECIMAL(10, 2) NOT NULL,
+    duration_days INTEGER NOT NULL DEFAULT 30,
+    -- Reference to MongoDB time slots document
+    time_slots_id VARCHAR(24),  -- MongoDB ObjectId
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT fk_subscription_type_parking FOREIGN KEY (parking_id) 
+        REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT chk_subscription_type_price_positive CHECK (price > 0),
+    CONSTRAINT chk_subscription_type_duration_positive CHECK (duration_days > 0)
+);
+
+-- Abonnements table (subscriptions actifs des utilisateurs)
 CREATE TABLE abonnements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
+    subscription_type_id UUID,  -- Reference to subscription_types
     subscription_type subscription_type NOT NULL DEFAULT 'monthly',
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
@@ -193,6 +216,8 @@ CREATE TABLE abonnements (
         REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_abonnement_parking FOREIGN KEY (parking_id) 
         REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_abonnement_subscription_type FOREIGN KEY (subscription_type_id) 
+        REFERENCES subscription_types(id) ON DELETE SET NULL,
     CONSTRAINT chk_end_after_start_date CHECK (end_date > start_date),
     CONSTRAINT chk_subscription_price_positive CHECK (price > 0)
 );
@@ -294,7 +319,7 @@ INSERT INTO users (id, email, password, first_name, name, role) VALUES
     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'John',
     'Doe',
-    'ownerParking'
+    'parking_owner'
 );
 
 -- Insert a test customer

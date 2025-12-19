@@ -21,38 +21,20 @@ export function EditParkingDialog({ open, onOpenChange, parking, onSuccess }: Ed
   const [formData, setFormData] = useState({
     title: parking.title,
     description: parking.description || '',
-    address: {
-      street: parking.address.street,
-      city: parking.address.city,
-      postalCode: parking.address.postalCode,
-      country: parking.address.country
-    },
+    latitude: (parking.latitude || 0).toString(),
+    longitude: (parking.longitude || 0).toString(),
     totalSpots: parking.totalSpots.toString(),
-    tarifs: {
-      hourly: parking.tarifs.hourly.toString(),
-      daily: parking.tarifs.daily?.toString() || '',
-      monthly: parking.tarifs.monthly?.toString() || ''
-    },
-    isAlwaysOpen: parking.isAlwaysOpen || false
+    pricePerHour: (parking.pricePerHour || 0).toString()
   });
 
   useEffect(() => {
     setFormData({
       title: parking.title,
       description: parking.description || '',
-      address: {
-        street: parking.address.street,
-        city: parking.address.city,
-        postalCode: parking.address.postalCode,
-        country: parking.address.country
-      },
+      latitude: (parking.latitude || 0).toString(),
+      longitude: (parking.longitude || 0).toString(),
       totalSpots: parking.totalSpots.toString(),
-      tarifs: {
-        hourly: parking.tarifs.hourly.toString(),
-        daily: parking.tarifs.daily?.toString() || '',
-        monthly: parking.tarifs.monthly?.toString() || ''
-      },
-      isAlwaysOpen: parking.isAlwaysOpen || false
+      pricePerHour: (parking.pricePerHour || 0).toString()
     });
   }, [parking]);
 
@@ -64,14 +46,10 @@ export function EditParkingDialog({ open, onOpenChange, parking, onSuccess }: Ed
         id: parking.id,
         title: formData.title,
         description: formData.description,
-        address: formData.address,
+        latitude: parseFloat(formData.latitude) || parking.latitude || 0,
+        longitude: parseFloat(formData.longitude) || parking.longitude || 0,
         totalSpots: parseInt(formData.totalSpots) || parking.totalSpots,
-        tarifs: {
-          hourly: parseFloat(formData.tarifs.hourly) || parking.tarifs.hourly,
-          daily: parseFloat(formData.tarifs.daily) || parking.tarifs.daily,
-          monthly: parseFloat(formData.tarifs.monthly) || parking.tarifs.monthly
-        },
-        isAlwaysOpen: formData.isAlwaysOpen
+        pricePerHour: parseFloat(formData.pricePerHour) || parking.pricePerHour || 0
       });
     });
     
@@ -95,7 +73,7 @@ export function EditParkingDialog({ open, onOpenChange, parking, onSuccess }: Ed
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Nom du parking *</Label>
+              <Label htmlFor="edit-title">Nom du parking *</Label>
               <Input
                 id="edit-title"
                 value={formData.title}
@@ -105,9 +83,9 @@ export function EditParkingDialog({ open, onOpenChange, parking, onSuccess }: Ed
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-totalSpaces">Nombre de places *</Label>
+              <Label htmlFor="edit-totalSpots">Nombre de places *</Label>
               <Input
-                id="edit-totalSpaces"
+                id="edit-totalSpots"
                 type="number"
                 value={formData.totalSpots}
                 onChange={(e) => setFormData({ ...formData, totalSpots: e.target.value })}
@@ -118,59 +96,42 @@ export function EditParkingDialog({ open, onOpenChange, parking, onSuccess }: Ed
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-street">Rue *</Label>
+              <Label htmlFor="edit-latitude">Latitude *</Label>
               <Input
-                id="edit-street"
-                value={formData.address.street}
-                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, street: e.target.value } })}
+                id="edit-latitude"
+                type="number"
+                step="0.000001"
+                value={formData.latitude}
+                onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-city">Ville *</Label>
+              <Label htmlFor="edit-longitude">Longitude *</Label>
               <Input
-                id="edit-city"
-                value={formData.address.city}
-                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })}
+                id="edit-longitude"
+                type="number"
+                step="0.000001"
+                value={formData.longitude}
+                onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
                 required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-hourlyRate">Tarif horaire (€) *</Label>
+              <Label htmlFor="edit-pricePerHour">Tarif horaire (€) *</Label>
               <Input
-                id="edit-hourlyRate"
+                id="edit-pricePerHour"
                 type="number"
                 step="0.5"
-                value={formData.tarifs.hourly}
-                onChange={(e) => setFormData({ ...formData, tarifs: { ...formData.tarifs, hourly: e.target.value } })}
+                value={formData.pricePerHour}
+                onChange={(e) => setFormData({ ...formData, pricePerHour: e.target.value })}
                 required
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-openingTime">Heure d'ouverture *</Label>
-              <Input
-                id="edit-openingTime"
-                type="time"
-                value={formData.openingTime}
-                onChange={(e) => setFormData({ ...formData, openingTime: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-closingTime">Heure de fermeture *</Label>
-              <Input
-                id="edit-closingTime"
-                type="time"
-                value={formData.closingTime}
-                onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
-                required
-              />
-            </div>
+            
           </div>
 
           <div className="space-y-2">

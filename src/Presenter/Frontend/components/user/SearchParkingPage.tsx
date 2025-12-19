@@ -6,7 +6,6 @@ import { Label } from '../ui/label';
 import { parkingService } from '../../services';
 import { useApi } from '../../hooks/useApi';
 import type { Parking } from '../../types';
-import { useEffect } from 'react';
 import { MapPin, Euro, Clock, Navigation } from 'lucide-react';
 import { ParkingDetailsDialog } from './ParkingDetailsDialog';
 
@@ -21,7 +20,7 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
   const [filteredParkings, setFilteredParkings] = useState<Parking[]>([]);
   const [selectedParkingId, setSelectedParkingId] = useState<string | null>(null);
 
-  const { data: allParkings, loading } = useApi(() => parkingService.getAvailableParkings());
+  const { data: allParkings, loading, execute: refreshParkings } = useApi(() => parkingService.getAvailableParkings());
 
   useEffect(() => {
     if (allParkings) {
@@ -148,10 +147,10 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
           <Card key={parking.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="mb-4">
-                <h3 className="text-gray-900 mb-2">{parking.name}</h3>
+                <h3 className="text-gray-900 mb-2">{parking.title}</h3>
                 <div className="flex items-start text-gray-600">
                   <MapPin className="size-4 mr-1 mt-1 flex-shrink-0" />
-                  <span className="line-clamp-2">{parking.address}</span>
+                  <span className="line-clamp-2">{parking.latitude?.toFixed(4) ?? '0.0000'}°, {parking.longitude?.toFixed(4) ?? '0.0000'}°</span>
                 </div>
               </div>
 
@@ -159,7 +158,7 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Places disponibles</span>
                   <span className="text-gray-900">
-                    {parking.availableSpaces}/{parking.totalSpaces}
+                    {parking.availableSpaces}/{parking.totalSpots}
                   </span>
                 </div>
 
@@ -168,7 +167,7 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
                     <Euro className="size-4 mr-1" />
                     <span>Tarif horaire</span>
                   </div>
-                  <span className="text-gray-900">{parking.hourlyRate.toFixed(2)} €</span>
+                  <span className="text-gray-900">{(parking.pricePerHour || 0).toFixed(2)} €</span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -177,7 +176,7 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
                     <span>Horaires</span>
                   </div>
                   <span className="text-gray-900">
-                    {parking.isAlwaysOpen ? '24/7' : `${parking.openingTime} - ${parking.closingTime}`}
+                    {parking.openingHours && Object.keys(parking.openingHours).length > 0 ? 'Voir détails' : '24/7'}
                   </span>
                 </div>
               </div>
@@ -187,12 +186,12 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
                   <div
                     className="bg-indigo-600 h-2 rounded-full"
                     style={{
-                      width: `${((parking.totalSpaces - parking.availableSpaces) / parking.totalSpaces) * 100}%`,
+                      width: `${(((parking.totalSpots || 0) - (parking.availableSpaces || 0)) / (parking.totalSpots || 1)) * 100}%`,
                     }}
                   />
                 </div>
                 <p className="text-gray-500 mt-2">
-                  {(((parking.totalSpaces - parking.availableSpaces) / parking.totalSpaces) * 100).toFixed(0)}% occupé
+                  {(((parking.totalSpots || 0) - (parking.availableSpaces || 0)) / (parking.totalSpots || 1) * 100).toFixed(0)}% occupé
                 </p>
               </div>
 
@@ -217,7 +216,13 @@ export function SearchParkingPage({ onViewDetails }: SearchParkingPageProps) {
         <ParkingDetailsDialog
           parkingId={selectedParkingId}
           open={!!selectedParkingId}
-          onOpenChange={(open) => !open && setSelectedParkingId(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedParkingId(null);
+              // Rafraîchir les parkings pour mettre à jour les places disponibles
+              refreshParkings();
+            }
+          }}
         />
       )}
     </div>

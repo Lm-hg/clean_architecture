@@ -92,7 +92,7 @@ export function ParkingsPage({ onViewDetails }: ParkingsPageProps) {
                   <div className="flex items-center text-gray-600">
                     <MapPin className="size-4 mr-1" />
                     <span>
-                      {parking.address.street}, {parking.address.city}
+                      {parking.latitude?.toFixed(4) ?? '0.0000'}°, {parking.longitude?.toFixed(4) ?? '0.0000'}°
                     </span>
                   </div>
                 </div>
@@ -102,7 +102,7 @@ export function ParkingsPage({ onViewDetails }: ParkingsPageProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Places disponibles</span>
                   <span className="text-gray-900">
-                    {parking.availableSpaces}/{parking.totalSpots}
+                    {parking.availableSpaces ?? 0}/{parking.totalSpots ?? 0}
                   </span>
                 </div>
 
@@ -111,7 +111,7 @@ export function ParkingsPage({ onViewDetails }: ParkingsPageProps) {
                     <Euro className="size-4 mr-1" />
                     <span>Tarif horaire</span>
                   </div>
-                  <span className="text-gray-900">{parking.tarifs.hourly.toFixed(2)} €</span>
+                  <span className="text-gray-900">{parking.pricePerHour?.toFixed(2) ?? '0.00'} €/h</span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -120,7 +120,7 @@ export function ParkingsPage({ onViewDetails }: ParkingsPageProps) {
                     <span>Horaires</span>
                   </div>
                   <span className="text-gray-900">
-                    {parking.isAlwaysOpen ? '24h/24' : 'Variables'}
+                    {parking.openingHours && Object.keys(parking.openingHours).length > 0 ? 'Variables' : '24h/24'}
                   </span>
                 </div>
               </div>
@@ -130,12 +130,12 @@ export function ParkingsPage({ onViewDetails }: ParkingsPageProps) {
                   <div
                     className="bg-indigo-600 h-2 rounded-full"
                     style={{
-                      width: `${((parking.totalSpots - parking.availableSpaces) / parking.totalSpots) * 100}%`,
+                      width: `${(((parking.totalSpots || 0) - (parking.availableSpaces || 0)) / (parking.totalSpots || 1)) * 100}%`,
                     }}
                   />
                 </div>
                 <p className="text-gray-500 mt-2">
-                  {(((parking.totalSpots - parking.availableSpaces) / parking.totalSpots) * 100).toFixed(0)}% occupé
+                  {(((parking.totalSpots || 0) - (parking.availableSpaces || 0)) / (parking.totalSpots || 1) * 100).toFixed(0)}% occupé
                 </p>
               </div>
             </CardContent>

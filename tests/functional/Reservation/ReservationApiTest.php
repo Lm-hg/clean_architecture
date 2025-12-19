@@ -5,6 +5,7 @@ namespace Tests\Functional\Reservation;
 use PHPUnit\Framework\TestCase;
 use PDO;
 use App\Infrastructure\Persistence\Sql\ReservationRepository;
+use App\Infrastructure\Persistence\Sql\ParkingRepository;
 use App\Application\UseCases\Reservation\CreateReservationUseCase;
 use App\Application\UseCases\Reservation\GetReservationUseCase;
 use App\Application\UseCases\Reservation\ListReservationsForUserUseCase;
@@ -66,7 +67,7 @@ class ReservationApiTest extends TestCase
         $this->assertEquals(200, $response['code'], 'Response: ' . json_encode($response));
         $this->assertEquals('success', $response['data']['status']);
         $this->assertArrayHasKey('id', $response['data']['data']);
-        $this->assertEquals('pending', $response['data']['data']['status']);
+        $this->assertEquals('confirmed', $response['data']['data']['status']);
     }
 
     public function test_get_reservation_by_id(): void
@@ -109,12 +110,13 @@ class ReservationApiTest extends TestCase
     private function makeRequest(string $method, string $path, array $data = []): array
     {
         // 1. Instancier la stack manuellement
-        $repository = new ReservationRepository($this->pdo);
+        $reservationRepository = new ReservationRepository($this->pdo);
+        $parkingRepository = new ParkingRepository($this->pdo);
         $controller = new ReservationController(
-            new CreateReservationUseCase($repository),
-            new GetReservationUseCase($repository),
-            new ListReservationsForUserUseCase($repository),
-            new CancelReservationUseCase($repository)
+            new CreateReservationUseCase($reservationRepository, $parkingRepository),
+            new GetReservationUseCase($reservationRepository),
+            new ListReservationsForUserUseCase($reservationRepository),
+            new CancelReservationUseCase($reservationRepository)
         );
 
         // 2. Simuler le routing

@@ -142,6 +142,9 @@ class ExitParkingUseCaseTest extends TestCase
         $reservationId = 'reservation-999';
         
         $entryTime = new \DateTime('-2 hours');
+        $reservationStart = new \DateTime('-2 hours');
+        $reservationEnd = new \DateTime('-1 hour');
+        
         $stationnement = new Stationnement(
             $userId,
             $parkingId,
@@ -153,6 +156,11 @@ class ExitParkingUseCaseTest extends TestCase
 
         $parking = $this->createMock(Parking::class);
         $reservation = $this->createMock(Reservation::class);
+        
+        // Mock reservation start/end times
+        $reservation->method('getStartTime')->willReturn($reservationStart);
+        $reservation->method('getEndTime')->willReturn($reservationEnd);
+        $reservation->method('isActive')->willReturn(false); // Already completed or not active
 
         $this->stationnementRepositoryMock
             ->expects($this->once())
@@ -170,9 +178,10 @@ class ExitParkingUseCaseTest extends TestCase
             ->with($reservationId)
             ->willReturn($reservation);
 
+        // Since there is a reservation, calculateReservationPrice is called
         $this->pricingServiceMock
             ->expects($this->once())
-            ->method('calculateParkingPrice')
+            ->method('calculateReservationPrice')
             ->willReturn(Price::fromFloat(10.0, 'EUR'));
 
         $this->penaltyCalculatorMock

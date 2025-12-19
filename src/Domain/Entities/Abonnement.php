@@ -7,13 +7,17 @@ use App\Domain\ValueObjects\TimeSlot;
 
 class Abonnement
 {
+    // Types prédéfinis (peuvent être utilisés comme référence)
     public const TYPE_TOTAL = 'total';
     public const TYPE_WEEKEND = 'weekend';
     public const TYPE_SOIR = 'soir';
     public const TYPE_SPECIFIQUE = 'specifique';
+    public const TYPE_HEBDOMADAIRE = 'hebdomadaire';
+    public const TYPE_MENSUEL = 'mensuel';
+    public const TYPE_TRIMESTRIEL = 'trimestriel';
 
-    public const MIN_DURATION_MONTHS = 1;
-    public const MAX_DURATION_MONTHS = 12;
+    public const MIN_DURATION_DAYS = 1;
+    public const MAX_DURATION_DAYS = 365;
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_EXPIRED = 'expired';
@@ -82,18 +86,17 @@ class Abonnement
 
     private function validateType(string $type): void
     {
-        $validTypes = [self::TYPE_TOTAL, self::TYPE_WEEKEND, self::TYPE_SOIR, self::TYPE_SPECIFIQUE];
-        if (!in_array($type, $validTypes, true)) {
-            throw new \InvalidArgumentException("Invalid subscription type: {$type}");
+        // Accepter n'importe quel type non vide
+        // Les propriétaires de parking peuvent définir leurs propres types d'abonnement
+        if (empty(trim($type))) {
+            throw new \InvalidArgumentException("Subscription type cannot be empty");
         }
     }
 
     private function validateTimeSlots(array $timeSlots): void
     {
-        // For TYPE_TOTAL, no time slots are required (full access)
-        if (empty($timeSlots) && ($this->type ?? null) !== self::TYPE_TOTAL) {
-            throw new \InvalidArgumentException("At least one time slot is required");
-        }
+        // Les time slots sont optionnels - si vide, accès illimité
+        // Sinon, chaque élément doit être un TimeSlot valide
         foreach ($timeSlots as $slot) {
             if (!($slot instanceof TimeSlot)) {
                 throw new \InvalidArgumentException("All time slots must be TimeSlot instances");
@@ -108,14 +111,14 @@ class Abonnement
         }
 
         $interval = $startDate->diff($endDate);
-        $durationInMonths = $interval->m + ($interval->y * 12);
+        $durationInDays = $interval->days;
 
-        if ($durationInMonths < self::MIN_DURATION_MONTHS) {
-            throw new \InvalidArgumentException("Minimum subscription duration is 1 month");
+        if ($durationInDays < self::MIN_DURATION_DAYS) {
+            throw new \InvalidArgumentException("Minimum subscription duration is 1 day");
         }
 
-        if ($durationInMonths > self::MAX_DURATION_MONTHS) {
-            throw new \InvalidArgumentException("Maximum subscription duration is 12 months");
+        if ($durationInDays > self::MAX_DURATION_DAYS) {
+            throw new \InvalidArgumentException("Maximum subscription duration is 365 days");
         }
     }
 
@@ -311,5 +314,42 @@ class Abonnement
     public function hasEnded(\DateTime $currentDateTime): bool
     {
         return $currentDateTime > $this->endDate;
+    }
+
+    /**
+     * Reconstitue un Abonnement depuis la base de données sans déclencher les validations du constructeur
+     */
+    public static function reconstitute(
+        string $userId,
+        string $parkingId,
+        string $type,
+        array $timeSlots,
+        \DateTime $startDate,
+        \DateTime $endDate,
+        Price $monthlyPrice,
+        \DateTime $createdAt,
+        \DateTime $updatedAt,
+        string $status,
+        bool $isPaid,
+        ?string $id = null
+    ): self {
+        $abonnement = new self(
+            $userId,
+            $parkingId,
+            $type,
+            $timeSlots,
+            $startDate,
+            $endDate,
+            $monthlyPrice,
+            $createdAt,
+            $updatedAt,
+            $id
+        );
+        
+        // Appliquer les états depuis la base de données
+        $abonnement->status = $status;
+        $abonnement->isPaid = $isPaid;
+        
+        return $abonnement;
     }
 }

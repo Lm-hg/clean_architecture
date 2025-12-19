@@ -41,7 +41,7 @@ class ListUsersUseCaseTest extends TestCase
             ),
             new User(
                 '223e4567-e89b-12d3-a456-426614174001',
-                'admin',
+                'parking_owner',
                 'Jane',
                 'Doe',
                 'jane@example.com',
@@ -81,7 +81,7 @@ class ListUsersUseCaseTest extends TestCase
         $this->assertEquals('Jane', $result[1]->firstName);
         $this->assertEquals('Doe', $result[1]->name);
         $this->assertEquals('jane@example.com', $result[1]->email->getEmail());
-        $this->assertEquals('admin', $result[1]->role->getRole());
+        $this->assertEquals('parking_owner', $result[1]->role->getRole());
     }
 
     public function test_execute_returns_empty_array_when_no_users(): void

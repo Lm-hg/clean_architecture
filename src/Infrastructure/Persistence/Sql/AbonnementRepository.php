@@ -16,11 +16,11 @@ use MongoDB\BSON\ObjectId;
 class AbonnementRepository implements AbonnementRepositoryInterface
 {
     private PDO $pdo;
-    private MongoManager $mongo;
+    private ?MongoManager $mongo;
     private string $mongoDb;
     private string $mongoCollection = 'creneaux_abonnements';
 
-    public function __construct(PDO $pdo, MongoManager $mongo, string $mongoDb = 'parking_db')
+    public function __construct(PDO $pdo, ?MongoManager $mongo = null, string $mongoDb = 'parking_db')
     {
         $this->pdo = $pdo;
         $this->mongo = $mongo;
@@ -29,14 +29,15 @@ class AbonnementRepository implements AbonnementRepositoryInterface
 
     public function save(Abonnement $abonnement): ?Abonnement
     {
-        // Prepare identifiers and persist time slots to MongoDB (if any)
+        // Prepare identifiers and persist time slots to MongoDB (if available)
         $timeSlots = $abonnement->getTimeSlots();
         $timeSlotsId = null;
 
         // Ensure we use a single UUID for both SQL row and Mongo document when creating
         $id = $abonnement->getId() ?? $this->generateUuidV4();
 
-        if (!empty($timeSlots)) {
+        if (!empty($timeSlots) && $this->mongo !== null) {
+            // Only use MongoDB if available
             $doc = [
                 'abonnement_id' => $id,
                 'time_slots' => array_map(function ($slot) {
@@ -46,13 +47,18 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 'updated_at' => (new \DateTime())->format('c'),
             ];
 
-            $bulk = new BulkWrite();
-            $insertedId = $bulk->insert($doc);
-            $wc = new WriteConcern(WriteConcern::MAJORITY, 1000);
-            $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, ['writeConcern' => $wc]);
+            try {
+                $bulk = new BulkWrite();
+                $insertedId = $bulk->insert($doc);
+                $wc = new WriteConcern(WriteConcern::MAJORITY, 1000);
+                $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, ['writeConcern' => $wc]);
 
-            if ($insertedId !== null) {
-                $timeSlotsId = (string)$insertedId;
+                if ($insertedId !== null) {
+                    $timeSlotsId = (string)$insertedId;
+                }
+            } catch (\Exception $e) {
+                // MongoDB not available - continue without time slots
+                error_log("MongoDB unavailable for time slots: " . $e->getMessage());
             }
         }
 
@@ -120,7 +126,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             $oldRow = $oldStmt->fetch(PDO::FETCH_ASSOC);
             $oldTimeSlotsId = $oldRow['time_slots_id'] ?? null;
 
-            if (!empty($oldTimeSlotsId) && !empty($timeSlotsId) && $oldTimeSlotsId !== $timeSlotsId) {
+            if ($this->mongo !== null && !empty($oldTimeSlotsId) && !empty($timeSlotsId) && $oldTimeSlotsId !== $timeSlotsId) {
                 try {
                     $bulkDel = new BulkWrite();
                     $bulkDel->delete(['_id' => new ObjectId($oldTimeSlotsId)], ['limit' => 1]);
@@ -147,7 +153,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
         }
 
         $timeSlots = [];
-        if (!empty($row['time_slots_id'])) {
+        if ($this->mongo !== null && !empty($row['time_slots_id'])) {
             try {
                 $oid = new ObjectId($row['time_slots_id']);
                 $query = new MongoQuery(['_id' => $oid]);
@@ -164,8 +170,29 @@ class AbonnementRepository implements AbonnementRepositoryInterface
         }
 
         $price = Price::fromFloat((float)$row['price']);
+        
+        // Map is_active to status
+        $status = Abonnement::STATUS_ACTIVE;
+        if (isset($row['is_active']) && !$row['is_active']) {
+            // Si is_active = false, c'est soit cancelled soit expired
+            // On vérifie si la date de fin est passée
+            $endDate = new \DateTime($row['end_date']);
+            $now = new \DateTime();
+            if ($endDate < $now) {
+                $status = Abonnement::STATUS_EXPIRED;
+            } else {
+                $status = Abonnement::STATUS_CANCELLED;
+            }
+        } elseif (isset($row['end_date'])) {
+            // Vérifier si l'abonnement est expiré
+            $endDate = new \DateTime($row['end_date']);
+            $now = new \DateTime();
+            if ($endDate < $now) {
+                $status = Abonnement::STATUS_EXPIRED;
+            }
+        }
 
-        return new Abonnement(
+        return Abonnement::reconstitute(
             $row['user_id'],
             $row['parking_id'],
             $row['subscription_type'],
@@ -175,6 +202,8 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             $price,
             new \DateTime($row['created_at']),
             new \DateTime($row['updated_at']),
+            $status,
+            (bool)($row['is_active'] ?? true),
             $row['id']
         );
     }

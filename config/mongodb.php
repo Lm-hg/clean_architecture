@@ -8,6 +8,12 @@ declare(strict_types=1);
  */
 
 try {
+    // Check if MongoDB extension is available
+    if (!class_exists('MongoDB\Driver\Manager')) {
+        error_log('MongoDB extension not installed - using fallback storage');
+        return null;
+    }
+    
     // Get MongoDB credentials from environment variables
     $mongoHost = getenv('MONGO_HOST') ?: 'localhost';
     $mongoUser = getenv('MONGO_USER') ?: 'root';
@@ -43,17 +49,9 @@ try {
 } catch (MongoDB\Driver\Exception\Exception $e) {
     // Log the error (in production, use a proper logger)
     error_log('MongoDB connection failed: ' . $e->getMessage());
-
-    // In development, show detailed error
-    // In production, you might want to show a generic error
-    if (getenv('APP_ENV') === 'production') {
-        throw new RuntimeException('MongoDB connection failed. Please contact support.');
-    }
-
-    // Re-throw with details in development
-    throw new RuntimeException(
-        'MongoDB connection failed: ' . $e->getMessage(),
-        (int) $e->getCode(),
-        $e
-    );
+    return null;
+} catch (\Throwable $e) {
+    // Any other error (extension not loaded, etc.)
+    error_log('MongoDB not available: ' . $e->getMessage());
+    return null;
 }

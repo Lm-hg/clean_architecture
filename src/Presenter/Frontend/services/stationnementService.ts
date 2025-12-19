@@ -10,12 +10,17 @@ export interface Stationnement {
   entryTime: string;
   exitTime?: string;
   reservationId?: string;
+  abonnementId?: string;
+  subscriptionId?: string;
   price?: {
     amount: number;
     currency: string;
   };
+  totalPrice?: number;
   hasPenalty?: boolean;
   penaltyAmount?: number;
+  penalty?: number;
+  isAuthorized?: boolean;
   status: 'active' | 'completed' | 'violation';
   createdAt: string;
   updatedAt: string;
@@ -86,20 +91,29 @@ export class StationnementService {
   }
 
   async getStationnementById(id: string): Promise<Stationnement> {
-    return apiClient.get<Stationnement>(`/stationnements/${id}`);
+    const response = await apiClient.get<{status: string, data: Stationnement, message: string}>(`/stationnements/${id}`);
+    return response.data;
   }
 
   async startStationnement(data: StartStationnementRequest): Promise<Stationnement> {
-    return apiClient.post<Stationnement>('/stationnements/start', data);
+    const response = await apiClient.post<{status: string, data: Stationnement, message: string}>('/stationnements/enter', data);
+    return response.data;
+  }
+
+  async startFromReservation(reservationId: string): Promise<Stationnement> {
+    const response = await apiClient.post<{status: string, data: Stationnement, message: string}>('/stationnements/start', { reservationId });
+    return response.data;
   }
 
   async endStationnement(data: EndStationnementRequest): Promise<Stationnement> {
-    return apiClient.post<Stationnement>('/stationnements/end', data);
+    const response = await apiClient.post<{status: string, data: Stationnement, message: string}>(`/stationnements/${data.stationnementId}/exit`, {});
+    return response.data;
   }
 
   async getCurrentStationnement(userId?: string): Promise<Stationnement | null> {
     try {
-      return await apiClient.get<Stationnement>('/user/current-stationnement');
+      const response = await apiClient.get<{status: string, data: Stationnement, message: string}>('/user/current-stationnement');
+      return response.data;
     } catch (error) {
       // Si pas de stationnement actuel, retourner null
       return null;
@@ -116,12 +130,14 @@ export class StationnementService {
     const queryString = params.toString();
     const endpoint = queryString ? `/owner/stationnements/stats?${queryString}` : '/owner/stationnements/stats';
     
-    return apiClient.get<StationnementStats>(endpoint);
+    const response = await apiClient.get<{status: string, data: StationnementStats, message: string}>(endpoint);
+    return response.data;
   }
 
   async getViolations(parkingId?: string): Promise<Stationnement[]> {
     const endpoint = parkingId ? `/owner/parkings/${parkingId}/violations` : '/owner/violations';
-    return apiClient.get<Stationnement[]>(endpoint);
+    const response = await apiClient.get<{status: string, data: Stationnement[], message: string}>(endpoint);
+    return response.data || [];
   }
 }
 

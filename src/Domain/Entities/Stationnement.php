@@ -22,6 +22,7 @@ class Stationnement
     private string $status;
     private bool $hasPenalty;
     private float $penaltyAmount;
+    private string $vehiclePlate;
     private \DateTime $createdAt;
     private \DateTime $updatedAt;
 
@@ -33,7 +34,8 @@ class Stationnement
         \DateTime $updatedAt,
         ?string $reservationId = null,
         ?string $abonnementId = null,
-        ?string $id = null
+        ?string $id = null,
+        string $vehiclePlate = 'AA-000-AA'
     ) {
         $this->validateUserId($userId);
         $this->validateParkingId($parkingId);
@@ -49,6 +51,7 @@ class Stationnement
         $this->status = self::STATUS_ACTIVE;
         $this->hasPenalty = false;
         $this->penaltyAmount = 0.0;
+        $this->vehiclePlate = $vehiclePlate;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -115,6 +118,16 @@ class Stationnement
     public function getStatus(): string
     {
         return $this->status;
+    }
+
+    public function getVehiclePlate(): string
+    {
+        return $this->vehiclePlate;
+    }
+
+    public function setVehiclePlate(string $vehiclePlate): void
+    {
+        $this->vehiclePlate = $vehiclePlate;
     }
 
     public function getPrice(): ?Price
@@ -279,7 +292,8 @@ class Stationnement
         \DateTime $createdAt,
         \DateTime $updatedAt,
         ?string $reservationId = null,
-        ?string $abonnementId = null
+        ?string $abonnementId = null,
+        string $vehiclePlate = 'AA-000-AA'
     ): self {
         $stationnement = new self(
             $userId,
@@ -289,7 +303,8 @@ class Stationnement
             $updatedAt,
             $reservationId,
             $abonnementId,
-            $id
+            $id,
+            $vehiclePlate
         );
         
         $stationnement->exitTime = $exitTime;

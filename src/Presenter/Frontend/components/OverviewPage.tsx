@@ -40,8 +40,8 @@ export function OverviewPage() {
 
   // Calcul des statistiques avec les vraies données
   const totalParkings = parkings?.length || 0;
-  const totalSpaces = parkings?.reduce((sum, p) => sum + p.totalSpots, 0) || 0;
-  const availableSpaces = parkings?.reduce((sum, p) => sum + p.availableSpaces, 0) || 0;
+  const totalSpaces = parkings?.reduce((sum, p) => sum + (p.totalSpots || 0), 0) || 0;
+  const availableSpaces = parkings?.reduce((sum, p) => sum + (p.availableSpaces || 0), 0) || 0;
   const occupancyRate = totalSpaces > 0 ? ((totalSpaces - availableSpaces) / totalSpaces * 100).toFixed(1) : '0.0';
 
   // Réservations du mois en cours
@@ -55,12 +55,12 @@ export function OverviewPage() {
   // Chiffre d'affaires du mois
   const monthlyRevenue = monthlyReservations
     .filter(r => r.status === 'completed')
-    .reduce((sum, r) => sum + r.totalPrice, 0);
+    .reduce((sum, r) => sum + (r.totalPrice || 0), 0);
 
   const subscriptionRevenue = subscriptions?.filter(sp => sp.status === 'active')
-    .reduce((sum, sp) => sum + sp.price, 0) || 0;
+    .reduce((sum, sp) => sum + (sp.price || 0), 0) || 0;
 
-  const totalRevenue = monthlyRevenue + subscriptionRevenue;
+  const totalRevenue = (monthlyRevenue || 0) + (subscriptionRevenue || 0);
 
   return (
     <div className="p-8">
@@ -130,17 +130,33 @@ export function OverviewPage() {
                       <p className="text-gray-500">{reservation.parkingName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-gray-900">{reservation.totalPrice.toFixed(2)} €</p>
+                      <p className="text-gray-900">{reservation.totalPrice?.toFixed(2) ?? '0.00'} €</p>
                       <span
                         className={`inline-block px-2 py-1 rounded text-white ${
                           reservation.status === 'completed'
                             ? 'bg-green-500'
+                            : reservation.status === 'confirmed'
+                            ? 'bg-indigo-500'
                             : reservation.status === 'active'
                             ? 'bg-blue-500'
+                            : reservation.status === 'cancelled'
+                            ? 'bg-red-500'
+                            : reservation.status === 'pending'
+                            ? 'bg-yellow-500'
                             : 'bg-gray-400'
                         }`}
                     >
-                      {reservation.status === 'completed' ? 'Terminé' : reservation.status === 'active' ? 'En cours' : 'En attente'}
+                      {reservation.status === 'completed' 
+                        ? 'Terminé' 
+                        : reservation.status === 'confirmed' 
+                        ? 'Réservé' 
+                        : reservation.status === 'active' 
+                        ? 'En cours' 
+                        : reservation.status === 'cancelled'
+                        ? 'Annulé'
+                        : reservation.status === 'pending'
+                        ? 'En attente'
+                        : 'Inconnu'}
                     </span>
                   </div>
                 </div>
@@ -166,10 +182,12 @@ export function OverviewPage() {
                   <div key={parking.id} className="flex items-center justify-between pb-4 border-b last:border-0">
                     <div>
                       <p className="text-gray-900">{parking.title}</p>
-                      <p className="text-gray-500">{parking.address.street}, {parking.address.city}</p>
+                      <p className="text-gray-500">
+                        {parking.latitude?.toFixed(4) ?? '0.0000'}°, {parking.longitude?.toFixed(4) ?? '0.0000'}°
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-gray-900">{parking.availableSpaces}/{parking.totalSpots}</p>
+                      <p className="text-gray-900">{parking.availableSpaces ?? 0}/{parking.totalSpots ?? 0}</p>
                       <p className="text-gray-500">places disponibles</p>
                     </div>
                   </div>
