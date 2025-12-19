@@ -157,6 +157,9 @@ CREATE TABLE stationnements (
     status session_status NOT NULL DEFAULT 'active',
     payment_status payment_status NOT NULL DEFAULT 'pending',
     vehicle_plate VARCHAR(20),
+    -- References for reservation-based and subscription-based parking
+    reservation_id UUID NULL,
+    abonnement_id UUID NULL,
     -- Reference to MongoDB event log
     event_log_id VARCHAR(24),  -- MongoDB ObjectId
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -167,6 +170,8 @@ CREATE TABLE stationnements (
         REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_stationnement_parking FOREIGN KEY (parking_id) 
         REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_stationnement_reservation FOREIGN KEY (reservation_id) 
+        REFERENCES reservations(id) ON DELETE SET NULL,
     CONSTRAINT chk_exit_after_entry CHECK (exit_time IS NULL OR exit_time > entry_time),
     CONSTRAINT chk_calculated_price_positive CHECK (calculated_price IS NULL OR calculated_price >= 0),
     CONSTRAINT chk_penalties_positive CHECK (penalties >= 0)

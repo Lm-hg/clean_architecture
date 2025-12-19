@@ -201,7 +201,7 @@ class ParkingOwnerApiTest extends TestCase
     {
         $id = $this->generateUuid();
         $stmt = $this->pdo->prepare(
-            "INSERT INTO parkings (id, owner_id, title, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots, is_active, opening_hours, created_at, updated_at) 
+            "INSERT INTO parkings (id, owner_id, title, address, city, postal_code, latitude, longitude, price_per_hour, total_spots, available_spots, is_available, opening_hours, created_at, updated_at) 
              VALUES (:id, :owner_id, 'Test Parking', '123 Test St', 'Paris', '75001', 48.8566, 2.3522, 5.0, 50, 50, true, :opening_hours, NOW(), NOW())"
         );
         $openingHours = json_encode(['monday' => ['08:00-20:00']]);
