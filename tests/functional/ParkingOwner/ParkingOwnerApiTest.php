@@ -51,9 +51,24 @@ class ParkingOwnerApiTest extends TestCase
 
     /**
      * Test: Créer un parking (Use Case propriétaire)
+     * Ce test nécessite un serveur HTTP en cours d'exécution
      */
     public function test_owner_can_create_parking(): void
     {
+        // Skip si pas de serveur HTTP disponible
+        $baseUrl = getenv('API_BASE_URL') ?: 'http://localhost';
+        $ch = curl_init($baseUrl . '/api/health');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 0) {
+            $this->markTestSkipped('HTTP server not available - this test requires a running server');
+        }
+        
         // Arrange
         $this->authenticate();
         $parkingData = [
@@ -82,9 +97,24 @@ class ParkingOwnerApiTest extends TestCase
 
     /**
      * Test: Voir les réservations de ses parkings (Use Case propriétaire)
+     * Ce test nécessite un serveur HTTP en cours d'exécution
      */
     public function test_owner_can_view_parking_reservations(): void
     {
+        // Skip si pas de serveur HTTP disponible
+        $baseUrl = getenv('API_BASE_URL') ?: 'http://localhost';
+        $ch = curl_init($baseUrl . '/api/health');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 0) {
+            $this->markTestSkipped('HTTP server not available - this test requires a running server');
+        }
+        
         // Arrange
         $this->authenticate();
         $parkingId = $this->createParkingInDb($this->ownerId);
@@ -220,8 +250,8 @@ class ParkingOwnerApiTest extends TestCase
         $endTime = (new \DateTime('+1 day 12:00'))->format('Y-m-d H:i:s');
         
         $stmt = $this->pdo->prepare(
-            "INSERT INTO reservations (id, user_id, parking_id, start_time, end_time, status, created_at, updated_at) 
-             VALUES (:id, :user_id, :parking_id, :start_time, :end_time, 'confirmed', NOW(), NOW())"
+            "INSERT INTO reservations (id, user_id, parking_id, start_time, end_time, status, total_price, created_at, updated_at) 
+             VALUES (:id, :user_id, :parking_id, :start_time, :end_time, 'confirmed', 10.00, NOW(), NOW())"
         );
         $stmt->execute([
             ':id' => $id,
