@@ -1,0 +1,14 @@
+[
+  {
+    "subscription_id": "example-subscription-001",
+    "time_slots": [
+      { "day": "Monday", "start": "08:00", "end": "18:00" },
+      { "day": "Tuesday", "start": "08:00", "end": "18:00" },
+      { "day": "Wednesday", "start": "08:00", "end": "18:00" },
+      { "day": "Thursday", "start": "08:00", "end": "18:00" },
+      { "day": "Friday", "start": "08:00", "end": "18:00" }
+    ],
+    "timezone": "Europe/Paris",
+    "updated_at": "2025-12-04T10:00:00Z"
+  }
+]

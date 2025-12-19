@@ -283,7 +283,7 @@ class ParkingRepositoryIntegrationTest extends TestCase
     {
         $stmt = $this->pdo->prepare("
             INSERT INTO users (id, role, first_name, name, email, password, created_at, updated_at) 
-            VALUES (:id, 'ownerParking', 'Test', 'Owner', :email, :password, NOW(), NOW())
+            VALUES (:id, 'parking_owner', 'Test', 'Owner', :email, :password, NOW(), NOW())
         ");
         $stmt->execute([
             'id' => $userId,

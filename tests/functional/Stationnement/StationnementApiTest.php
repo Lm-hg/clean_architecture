@@ -136,10 +136,10 @@ class StationnementApiTest extends TestCase
         $this->assertEquals('success', $response['status']);
         $this->assertArrayHasKey('data', $response);
         $this->assertNotNull($response['data']['id']);
-        $this->assertEquals($this->userId, $response['data']['user_id']);
-        $this->assertEquals($this->parkingId, $response['data']['parking_id']);
+        $this->assertEquals($this->userId, $response['data']['userId']);
+        $this->assertEquals($this->parkingId, $response['data']['parkingId']);
         $this->assertEquals(Stationnement::STATUS_ACTIVE, $response['data']['status']);
-        $this->assertArrayHasKey('entry_time', $response['data']);
+        $this->assertArrayHasKey('entryTime', $response['data']);
     }
 
     public function test_enter_parking_with_missing_fields(): void
@@ -195,9 +195,9 @@ class StationnementApiTest extends TestCase
         // Assert
         $this->assertEquals('success', $response['status']);
         $this->assertArrayHasKey('data', $response);
-        $this->assertNotNull($response['data']['exit_time']);
+        $this->assertNotNull($response['data']['exitTime']);
         $this->assertNotNull($response['data']['price']);
-        $this->assertArrayHasKey('duration_minutes', $response['data']);
+        $this->assertArrayHasKey('durationMinutes', $response['data']);
     }
 
     public function test_get_stationnement_by_id(): void
@@ -222,7 +222,7 @@ class StationnementApiTest extends TestCase
         $this->assertEquals('success', $response['status']);
         $this->assertArrayHasKey('data', $response);
         $this->assertEquals($stationnementId, $response['data']['id']);
-        $this->assertEquals($this->userId, $response['data']['user_id']);
+        $this->assertEquals($this->userId, $response['data']['userId']);
     }
 
     public function test_list_stationnements_for_user(): void

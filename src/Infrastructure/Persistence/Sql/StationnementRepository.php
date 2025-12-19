@@ -138,10 +138,12 @@ class StationnementRepository implements StationnementRepositoryInterface
             INSERT INTO stationnements (
                 id, user_id, parking_id, entry_time, exit_time,
                 calculated_price, penalties, status,
+                reservation_id, abonnement_id,
                 created_at, updated_at
             ) VALUES (
                 :id, :user_id, :parking_id, :entry_time, :exit_time,
                 :calculated_price, :penalties, :status,
+                :reservation_id, :abonnement_id,
                 :created_at, :updated_at
             )
         ');
@@ -155,6 +157,8 @@ class StationnementRepository implements StationnementRepositoryInterface
             'calculated_price' => $priceAmount,
             'penalties' => $stationnement->getPenaltyAmount(),
             'status' => $stationnement->getStatus(),
+            'reservation_id' => $stationnement->getReservationId(),
+            'abonnement_id' => $stationnement->getAbonnementId(),
             'created_at' => $stationnement->getCreatedAt()->format('Y-m-d H:i:s'),
             'updated_at' => $stationnement->getUpdatedAt()->format('Y-m-d H:i:s')
         ]);
@@ -236,8 +240,9 @@ class StationnementRepository implements StationnementRepositoryInterface
             (float)($row['penalties'] ?? 0),
             new \DateTime($row['created_at']),
             new \DateTime($row['updated_at']),
-            null, // reservation_id - pas dans la table pour l'instant
-            null  // abonnement_id - pas dans la table pour l'instant
+            $row['reservation_id'] ?? null,
+            $row['abonnement_id'] ?? null,
+            $row['vehicle_plate'] ?? 'AA-000-AA'
         );
     }
 

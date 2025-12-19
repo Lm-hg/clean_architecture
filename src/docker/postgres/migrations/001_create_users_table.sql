@@ -6,7 +6,7 @@
 -- Step 1: Create the table if it doesn't exist
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'ownerParking')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'parking_owner')),
     first_name VARCHAR(255) NOT NULL CHECK (char_length(first_name) >= 2),
     name VARCHAR(255) NOT NULL CHECK (char_length(name) >= 2),
     email VARCHAR(255) NOT NULL UNIQUE,

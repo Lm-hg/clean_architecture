@@ -16,6 +16,29 @@ class PenaltyCalculator
     public const PENALTY_PER_HOUR_OVERRUN = 5.0; // 5€ par heure de dépassement
 
     /**
+     * Calcule la pénalité pour une entrée tardive (arrivée après la fin de la réservation)
+     * 
+     * @param Stationnement $stationnement
+     * @param Reservation $reservation
+     * @return float Montant de la pénalité
+     */
+    public function calculateLateEntryPenalty(
+        Stationnement $stationnement,
+        Reservation $reservation
+    ): float {
+        $entryTime = $stationnement->getEntryTime();
+        $reservationEnd = $reservation->getEndTime();
+        
+        // Si l'entrée est APRÈS la fin de la réservation, c'est une entrée tardive
+        if ($entryTime > $reservationEnd) {
+            // Pénalité de base pour entrée tardive
+            return self::DEFAULT_PENALTY_AMOUNT;
+        }
+        
+        return 0.0;
+    }
+
+    /**
      * Calcule le montant de la pénalité pour un stationnement qui dépasse une réservation
      * 
      * @param Stationnement $stationnement
@@ -87,9 +110,19 @@ class PenaltyCalculator
         ?Abonnement $abonnement = null,
         ?\DateTime $abonnementSlotEndTime = null
     ): float {
+        $totalPenalty = 0.0;
+        
         // Priorité à la réservation si les deux existent
         if ($reservation !== null && $stationnement->hasReservation()) {
-            return $this->calculateReservationOverrunPenalty($stationnement, $reservation);
+            // Vérifier d'abord l'entrée tardive
+            $lateEntryPenalty = $this->calculateLateEntryPenalty($stationnement, $reservation);
+            $totalPenalty += $lateEntryPenalty;
+            
+            // Puis vérifier le dépassement à la sortie
+            $overrunPenalty = $this->calculateReservationOverrunPenalty($stationnement, $reservation);
+            $totalPenalty += $overrunPenalty;
+            
+            return $totalPenalty;
         }
 
         if ($abonnement !== null && $stationnement->hasAbonnement() && $abonnementSlotEndTime !== null) {

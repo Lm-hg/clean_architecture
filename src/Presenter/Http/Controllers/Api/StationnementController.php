@@ -54,13 +54,13 @@ class StationnementController
                 'status' => 'success',
                 'data' => [
                     'id' => $stationnement->getId(),
-                    'user_id' => $stationnement->getUserId(),
-                    'parking_id' => $stationnement->getParkingId(),
-                    'entry_time' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
+                    'userId' => $stationnement->getUserId(),
+                    'parkingId' => $stationnement->getParkingId(),
+                    'entryTime' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
                     'status' => $stationnement->getStatus(),
-                    'reservation_id' => $stationnement->getReservationId(),
-                    'abonnement_id' => $stationnement->getAbonnementId(),
-                    'created_at' => $stationnement->getCreatedAt()->format(\DateTime::ATOM)
+                    'reservationId' => $stationnement->getReservationId(),
+                    'abonnementId' => $stationnement->getAbonnementId(),
+                    'createdAt' => $stationnement->getCreatedAt()->format(\DateTime::ATOM)
                 ]
             ];
         } catch (EntityNotFoundException $e) {
@@ -102,17 +102,17 @@ class StationnementController
                 'status' => 'success',
                 'data' => [
                     'id' => $stationnement->getId(),
-                    'user_id' => $stationnement->getUserId(),
-                    'parking_id' => $stationnement->getParkingId(),
-                    'entry_time' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
-                    'exit_time' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
+                    'userId' => $stationnement->getUserId(),
+                    'parkingId' => $stationnement->getParkingId(),
+                    'entryTime' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
+                    'exitTime' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
                     'status' => $stationnement->getStatus(),
                     'price' => $stationnement->getPrice()?->getAmount(),
-                    'penalty_amount' => $stationnement->getPenaltyAmount(),
-                    'has_penalty' => $stationnement->getHasPenalty(),
-                    'total_amount' => $stationnement->getTotalAmount(),
-                    'duration_minutes' => $stationnement->getDurationInMinutes(),
-                    'updated_at' => $stationnement->getUpdatedAt()->format(\DateTime::ATOM)
+                    'penaltyAmount' => $stationnement->getPenaltyAmount(),
+                    'hasPenalty' => $stationnement->getHasPenalty(),
+                    'totalAmount' => $stationnement->getTotalAmount(),
+                    'durationMinutes' => $stationnement->getDurationInMinutes(),
+                    'updatedAt' => $stationnement->getUpdatedAt()->format(\DateTime::ATOM)
                 ]
             ];
         } catch (EntityNotFoundException $e) {
@@ -149,20 +149,20 @@ class StationnementController
                 'status' => 'success',
                 'data' => [
                     'id' => $stationnement->getId(),
-                    'user_id' => $stationnement->getUserId(),
-                    'parking_id' => $stationnement->getParkingId(),
-                    'entry_time' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
-                    'exit_time' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
+                    'userId' => $stationnement->getUserId(),
+                    'parkingId' => $stationnement->getParkingId(),
+                    'entryTime' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
+                    'exitTime' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
                     'status' => $stationnement->getStatus(),
                     'price' => $stationnement->getPrice()?->getAmount(),
-                    'penalty_amount' => $stationnement->getPenaltyAmount(),
-                    'has_penalty' => $stationnement->getHasPenalty(),
-                    'total_amount' => $stationnement->getTotalAmount(),
-                    'duration_minutes' => $stationnement->getDurationInMinutes(),
-                    'reservation_id' => $stationnement->getReservationId(),
-                    'abonnement_id' => $stationnement->getAbonnementId(),
-                    'created_at' => $stationnement->getCreatedAt()->format(\DateTime::ATOM),
-                    'updated_at' => $stationnement->getUpdatedAt()->format(\DateTime::ATOM)
+                    'penaltyAmount' => $stationnement->getPenaltyAmount(),
+                    'hasPenalty' => $stationnement->getHasPenalty(),
+                    'totalAmount' => $stationnement->getTotalAmount(),
+                    'durationMinutes' => $stationnement->getDurationInMinutes(),
+                    'reservationId' => $stationnement->getReservationId(),
+                    'abonnementId' => $stationnement->getAbonnementId(),
+                    'createdAt' => $stationnement->getCreatedAt()->format(\DateTime::ATOM),
+                    'updatedAt' => $stationnement->getUpdatedAt()->format(\DateTime::ATOM)
                 ]
             ];
         } catch (EntityNotFoundException $e) {
@@ -202,13 +202,13 @@ class StationnementController
             $data = array_map(function ($stationnement) {
                 return [
                     'id' => $stationnement->getId(),
-                    'parking_id' => $stationnement->getParkingId(),
-                    'entry_time' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
-                    'exit_time' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
+                    'parkingId' => $stationnement->getParkingId(),
+                    'entryTime' => $stationnement->getEntryTime()->format(\DateTime::ATOM),
+                    'exitTime' => $stationnement->getExitTime()?->format(\DateTime::ATOM),
                     'status' => $stationnement->getStatus(),
                     'price' => $stationnement->getPrice()?->getAmount(),
-                    'has_penalty' => $stationnement->getHasPenalty(),
-                    'duration_minutes' => $stationnement->getDurationInMinutes()
+                    'hasPenalty' => $stationnement->getHasPenalty(),
+                    'durationMinutes' => $stationnement->getDurationInMinutes()
                 ];
             }, $stationnements);
 

@@ -1,0 +1,24 @@
+[
+  {
+    "invoice_id": "example-invoice-001",
+    "user_id": "example-user-001",
+    "invoice_number": "INV-2025-000001",
+    "date": "2025-12-04T10:00:00Z",
+    "items": [
+      {
+        "type": "parking_session",
+        "description": "Parking session - 2 hours",
+        "quantity": 1,
+        "unit_price": 3.20,
+        "total": 3.20
+      }
+    ],
+    "subtotal": 3.20,
+    "tax_rate": 0.20,
+    "tax_amount": 0.64,
+    "total": 3.84,
+    "payment_status": "paid",
+    "payment_method": "credit_card",
+    "pdf_path": null
+  }
+]

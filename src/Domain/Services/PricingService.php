@@ -27,20 +27,27 @@ class PricingService
         Parking $parking,
         \DateTime $exitTime
     ): Price {
+        error_log("PricingService: Calculating price for parking " . $parking->getId());
+        
         // Si l'utilisateur a un abonnement valide, le prix est gratuit
         if ($stationnement->hasAbonnement()) {
+            error_log("PricingService: Has abonnement, price = 0");
             return Price::fromFloat(0.0, 'EUR');
         }
 
         // Calculer la durée en minutes
         $duration = $exitTime->getTimestamp() - $stationnement->getEntryTime()->getTimestamp();
         $durationInMinutes = (int)($duration / 60);
+        error_log("PricingService: Duration = $durationInMinutes minutes");
 
         // Calculer le nombre de tranches de 15 minutes (arrondi au supérieur)
-        $quarters = (int)ceil($durationInMinutes / 15);
+        // Minimum 1 tranche même si la durée est inférieure à 15 minutes
+        $quarters = max(1, (int)ceil($durationInMinutes / 15));
+        error_log("PricingService: Quarters = $quarters");
 
         // Récupérer les tarifs du parking
         $tarifs = $parking->getTarifs();
+        error_log("PricingService: Tarifs count = " . count($tarifs->all()));
 
         // Calculer le prix total en parcourant chaque tranche de 15min
         $totalPrice = 0.0;
@@ -51,14 +58,19 @@ class PricingService
             $applicablePrice = $tarifs->getApplicablePrice($currentTime);
             
             if ($applicablePrice === null) {
+                error_log("PricingService: No applicable price found, using first tarif");
                 // Si aucun tarif applicable, utiliser le premier tarif disponible
                 $allTarifs = $tarifs->all();
                 if (!empty($allTarifs)) {
                     $applicablePrice = $allTarifs[0]->getPrice();
+                    error_log("PricingService: First tarif price = " . $applicablePrice->getAmount());
                 } else {
                     // Prix par défaut si pas de tarif
                     $applicablePrice = Price::fromFloat(1.0, 'EUR');
+                    error_log("PricingService: Using default price 1.0");
                 }
+            } else {
+                error_log("PricingService: Applicable price = " . $applicablePrice->getAmount());
             }
 
             // Prix pour une tranche de 15min = prix par heure / 4
@@ -69,6 +81,7 @@ class PricingService
             $currentTime->modify('+15 minutes');
         }
 
+        error_log("PricingService: Total price = $totalPrice");
         return Price::fromFloat($totalPrice, 'EUR');
     }
 
