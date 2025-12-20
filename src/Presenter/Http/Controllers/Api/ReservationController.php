@@ -30,10 +30,10 @@ class ReservationController
     public function create(array $data): array
     {
         try {
-            // Debug: Log received data in controller
+            // Débogage : Enregistrer les données reçues dans le contrôleur
             error_log("ReservationController received: " . json_encode($data));
             
-            // Validate required fields
+            // Valider les champs requis
             if (!isset($data['user_id'], $data['parking_id'], $data['start_time'], $data['end_time'])) {
                 $missing = [];
                 if (!isset($data['user_id'])) $missing[] = 'user_id';
@@ -44,14 +44,14 @@ class ReservationController
                 throw new \InvalidArgumentException('Missing required fields: ' . implode(', ', $missing));
             }
 
-            // Parse dates from UTC and convert to Europe/Paris timezone
+            // Parser les dates depuis UTC et convertir vers le fuseau horaire Europe/Paris
             $start = new \DateTime($data['start_time'], new \DateTimeZone('UTC'));
             $start->setTimezone(new \DateTimeZone('Europe/Paris'));
             
             $end = new \DateTime($data['end_time'], new \DateTimeZone('UTC'));
             $end->setTimezone(new \DateTimeZone('Europe/Paris'));
 
-            // Validate minimum duration of 15 minutes
+            // Valider une durée minimale de 15 minutes
             $durationInMinutes = ($end->getTimestamp() - $start->getTimestamp()) / 60;
             error_log("Reservation duration: $durationInMinutes minutes (start: " . $start->format('Y-m-d H:i:s') . ", end: " . $end->format('Y-m-d H:i:s') . ")");
             
@@ -87,7 +87,7 @@ class ReservationController
             return [
                 'status' => 'error',
                 'message' => $e->getMessage(),
-                'receivedData' => array_keys($data) // Pour debug
+                'receivedData' => array_keys($data) // Pour débogage
             ];
         } catch (\Exception $e) {
             http_response_code(500);
@@ -112,12 +112,12 @@ class ReservationController
             ];
         }
 
-        // Get penalty and overstay from stationnement if exists
+        // Récupérer la pénalité et le dépassement depuis le stationnement s'il existe
         $penalty = null;
         $overstayDuration = null;
         
-        // We need to check the database for stationnement linked to this reservation
-        // This is a quick fix - ideally should be in a use case
+        // Nous devons vérifier la base de données pour le stationnement lié à cette réservation
+        // Ceci est une solution rapide - idéalement devrait être dans un use case
         try {
             $pdo = require BASE_PATH . '/config/database.php';
             $stmt = $pdo->prepare("SELECT penalties, entry_time, exit_time FROM stationnements WHERE reservation_id = :reservation_id ORDER BY entry_time DESC LIMIT 1");
@@ -131,7 +131,7 @@ class ReservationController
                     $actualEntry = new \DateTime($stationnement['entry_time']);
                     $actualExit = new \DateTime($stationnement['exit_time']);
                     
-                    // Calculate allowed exit time based on reserved duration from actual entry
+                    // Calculer l'heure de sortie autorisée basée sur la durée réservée depuis l'entrée réelle
                     $reservedDuration = $reservation->getEndTime()->getTimestamp() - $reservation->getStartTime()->getTimestamp();
                     $allowedExitTime = clone $actualEntry;
                     $allowedExitTime->modify('+' . $reservedDuration . ' seconds');
@@ -142,7 +142,7 @@ class ReservationController
                 }
             }
         } catch (\Exception $e) {
-            // Ignore errors
+            // Ignorer les erreurs
         }
 
         return [
@@ -190,7 +190,7 @@ class ReservationController
                 $stationnement = $stmt->fetch(\PDO::FETCH_ASSOC);
                 if ($stationnement) {
                     $stationnementId = $stationnement['id'];
-                    // Convertir les dates SQL en format ISO
+                    // Convertir les dates SQL au format ISO
                     if ($stationnement['entry_time']) {
                         $entryTime = (new \DateTime($stationnement['entry_time']))->format(\DateTime::ATOM);
                     }

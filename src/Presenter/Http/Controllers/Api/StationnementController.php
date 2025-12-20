@@ -35,7 +35,7 @@ class StationnementController
     public function enter(array $data): array
     {
         try {
-            // Validate required fields
+            // Valider les champs requis
             if (!isset($data['user_id'], $data['parking_id'])) {
                 throw new \InvalidArgumentException('Missing required fields: user_id and parking_id are required');
             }
@@ -91,7 +91,7 @@ class StationnementController
     public function exit(string $id, array $data): array
     {
         try {
-            // Validate required fields
+            // Valider les champs requis
             if (!isset($data['user_id'])) {
                 throw new \InvalidArgumentException('Missing required field: user_id');
             }

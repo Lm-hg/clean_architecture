@@ -69,9 +69,9 @@ export class ApiClient {
         throw error;
       }
       
-      throw new ApiError(
+        throw new ApiError(
         0,
-        'Network error or server unavailable',
+        'Erreur réseau ou serveur indisponible',
         error
       );
     }

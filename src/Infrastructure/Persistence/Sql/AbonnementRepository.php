@@ -29,15 +29,15 @@ class AbonnementRepository implements AbonnementRepositoryInterface
 
     public function save(Abonnement $abonnement): ?Abonnement
     {
-        // Prepare identifiers and persist time slots to MongoDB (if available)
+        // Préparer les identifiants et persister les créneaux horaires dans MongoDB (si disponible)
         $timeSlots = $abonnement->getTimeSlots();
         $timeSlotsId = null;
 
-        // Ensure we use a single UUID for both SQL row and Mongo document when creating
+        // S'assurer d'utiliser un seul UUID pour la ligne SQL et le document Mongo lors de la création
         $id = $abonnement->getId() ?? $this->generateUuidV4();
 
         if (!empty($timeSlots) && $this->mongo !== null) {
-            // Only use MongoDB if available
+            // Utiliser MongoDB uniquement s'il est disponible
             $doc = [
                 'abonnement_id' => $id,
                 'time_slots' => array_map(function ($slot) {
@@ -57,12 +57,12 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                     $timeSlotsId = (string)$insertedId;
                 }
             } catch (\Exception $e) {
-                // MongoDB not available - continue without time slots
+                // MongoDB non disponible - continuer sans créneaux horaires
                 error_log("MongoDB unavailable for time slots: " . $e->getMessage());
             }
         }
 
-        // Check if exists
+        // Vérifier si l'entité existe
         $existing = $this->findById($id);
 
         if ($existing === null) {
@@ -85,7 +85,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 return null;
             }
 
-            // Return saved entity with id
+            // Retourner l'entité sauvegardée avec son ID
             return new Abonnement(
                 $abonnement->getUserId(),
                 $abonnement->getParkingId(),
@@ -100,7 +100,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             );
         }
 
-        // Update path: update abonnements row and replace time slots document if needed
+        // Chemin de mise à jour : mettre à jour la ligne abonnements et remplacer le document créneaux horaires si nécessaire
         $stmt = $this->pdo->prepare('UPDATE abonnements SET user_id = :user_id, parking_id = :parking_id, subscription_type = :type, start_date = :start_date, end_date = :end_date, is_active = :is_active, time_slots_id = :time_slots_id, price = :price, updated_at = :updated_at WHERE id = :id');
         $success = $stmt->execute([
             ':id' => $id,
@@ -119,7 +119,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             return null;
         }
 
-        // If there was an existing time_slots_id and we have new slots, remove the old mongo doc
+        // S'il y avait un time_slots_id existant et que nous avons de nouveaux créneaux, supprimer l'ancien document Mongo
         try {
             $oldStmt = $this->pdo->prepare('SELECT time_slots_id FROM abonnements WHERE id = :id');
             $oldStmt->execute([':id' => $id]);
@@ -132,11 +132,11 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                     $bulkDel->delete(['_id' => new ObjectId($oldTimeSlotsId)], ['limit' => 1]);
                     $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulkDel, ['writeConcern' => new WriteConcern(WriteConcern::MAJORITY, 1000)]);
                 } catch (\Throwable $e) {
-                    // Log or ignore deletion failure; do not break update flow
+                    // Enregistrer ou ignorer l'échec de suppression ; ne pas interrompre le flux de mise à jour
                 }
             }
         } catch (\Throwable $e) {
-            // ignore select errors
+            // Ignorer les erreurs de sélection
         }
 
         return $abonnement;
@@ -165,13 +165,13 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                     }
                 }
             } catch (\Exception $e) {
-                // ignore mongo read errors and continue with empty timeSlots
+                // Ignorer les erreurs de lecture Mongo et continuer avec des créneaux horaires vides
             }
         }
 
         $price = Price::fromFloat((float)$row['price']);
         
-        // Map is_active to status
+        // Mapper is_active vers le statut
         $status = Abonnement::STATUS_ACTIVE;
         if (isset($row['is_active']) && !$row['is_active']) {
             // Si is_active = false, c'est soit cancelled soit expired
@@ -254,7 +254,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
 
     private function mapTypeToDb(string $type): string
     {
-        // Map domain types to the DB enum values used in SQL init script
+        // Mapper les types du domaine vers les valeurs enum de la base de données utilisées dans le script SQL d'initialisation
         return match ($type) {
             Abonnement::TYPE_TOTAL => 'monthly',
             Abonnement::TYPE_WEEKEND => 'weekly',

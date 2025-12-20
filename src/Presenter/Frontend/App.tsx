@@ -20,8 +20,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Force logout on app start for testing
-  // Remove this in production
+  // Forcer la déconnexion au démarrage de l'application pour les tests
+  // Retirer ceci en production
   // React.useEffect(() => {
   //   authService.forceLogout();
   // }, []);
