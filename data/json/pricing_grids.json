@@ -1,0 +1,28 @@
+[
+  {
+    "parking_id": "default",
+    "name": "Default Pricing Grid",
+    "currency": "EUR",
+    "rates": {
+      "15min": 0.30,
+      "30min": 0.60,
+      "1h": 1.20,
+      "2h": 3.20,
+      "4h": 5.00,
+      "day": 12.00,
+      "night": 2.00
+    },
+    "special_rates": {
+      "weekend": {
+        "day": 10.00
+      },
+      "holiday": {
+        "day": 8.00
+      }
+    },
+    "validFrom": "2025-01-01T00:00:00Z",
+    "validTo": null,
+    "created_at": "2025-12-04T10:00:00Z",
+    "updated_at": "2025-12-04T10:00:00Z"
+  }
+]

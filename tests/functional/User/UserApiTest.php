@@ -305,7 +305,7 @@ class UserApiTest extends TestCase
             'firstName' => 'Updated',
             'name' => 'Name',
             'password' => 'newpassword123',
-            'role' => 'admin'
+            'role' => 'parking_owner'
         ];
         
         // Act
@@ -316,7 +316,7 @@ class UserApiTest extends TestCase
         $this->assertEquals('success', $response['data']['status']);
         $this->assertEquals('Updated', $response['data']['data']['firstName']);
         $this->assertEquals('Name', $response['data']['data']['name']);
-        $this->assertEquals('admin', $response['data']['data']['role']);
+        $this->assertEquals('parking_owner', $response['data']['data']['role']);
         
         // Vérifier en base
         $user = $this->getUserFromDb($userId);

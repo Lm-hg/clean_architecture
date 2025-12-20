@@ -2,3 +2,7 @@
 vendor
 vscode
 .phpunit.cache
+/.phpunit.cache
+node_modules
+dist
+*.log

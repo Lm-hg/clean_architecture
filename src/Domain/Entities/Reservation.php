@@ -8,6 +8,7 @@ class Reservation
 {
     public const STATUS_PENDING = 'pending';
     public const STATUS_CONFIRMED = 'confirmed';
+    public const STATUS_ACTIVE = 'active';
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_NO_SHOW = 'no_show';
@@ -42,7 +43,7 @@ class Reservation
         $this->startTime = $startTime;
         $this->endTime = $endTime;
         $this->price = null;
-        $this->status = self::STATUS_PENDING;
+        $this->status = self::STATUS_CONFIRMED;
         $this->isPaid = false;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
@@ -82,7 +83,7 @@ class Reservation
 
     private function validateStatus(string $status): void
     {
-        $validStatuses = [self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_CANCELLED, self::STATUS_COMPLETED, self::STATUS_NO_SHOW];
+        $validStatuses = [self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_ACTIVE, self::STATUS_CANCELLED, self::STATUS_COMPLETED, self::STATUS_NO_SHOW];
         if (!in_array($status, $validStatuses, true)) {
             throw new \InvalidArgumentException("Invalid status: {$status}");
         }
@@ -133,6 +134,11 @@ class Reservation
         return $this->price;
     }
 
+    public function getTotalPrice(): float
+    {
+        return $this->price ? $this->price->getAmount() : 0.0;
+    }
+
     public function setPrice(Price $price): void
     {
         $this->price = $price;
@@ -160,6 +166,15 @@ class Reservation
         $this->updatedAt = new \DateTime();
     }
 
+    public function activate(): void
+    {
+        if ($this->status !== self::STATUS_CONFIRMED) {
+            throw new \DomainException("Only confirmed reservations can be activated");
+        }
+        $this->status = self::STATUS_ACTIVE;
+        $this->updatedAt = new \DateTime();
+    }
+
     public function cancel(): void
     {
         if ($this->status === self::STATUS_CANCELLED || $this->status === self::STATUS_COMPLETED) {
@@ -171,8 +186,8 @@ class Reservation
 
     public function complete(): void
     {
-        if ($this->status !== self::STATUS_CONFIRMED) {
-            throw new \DomainException("Only confirmed reservations can be completed");
+        if ($this->status !== self::STATUS_CONFIRMED && $this->status !== self::STATUS_ACTIVE) {
+            throw new \DomainException("Only confirmed or active reservations can be completed");
         }
         $this->status = self::STATUS_COMPLETED;
         $this->updatedAt = new \DateTime();
@@ -235,6 +250,11 @@ class Reservation
     public function isConfirmed(): bool
     {
         return $this->status === self::STATUS_CONFIRMED;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
     }
 
     public function isCancelled(): bool

@@ -239,14 +239,15 @@ class UserController
             throw new \InvalidArgumentException('Password is required');
         }
 
-        if (isset($data['role']) && !in_array($data['role'], ['admin', 'user', 'ownerParking'])) {
-            throw new \InvalidArgumentException('Invalid role. Allowed roles: admin, user, ownerParking');
+        if (isset($data['role']) && !in_array($data['role'], ['user', 'parking_owner'])) {
+            throw new \InvalidArgumentException('Invalid role. Allowed roles: user, parking_owner');
         }
     }
 
     /**
      * Valide les données pour la mise à jour d'utilisateur
      */
+    
     private function validateUpdateRequest(array $data): void
     {
         if (empty($data['firstName'])) {
@@ -261,8 +262,8 @@ class UserController
             throw new \InvalidArgumentException('Password is required');
         }
 
-        if (isset($data['role']) && !in_array($data['role'], ['admin', 'user', 'ownerParking'])) {
-            throw new \InvalidArgumentException('Invalid role. Allowed roles: admin, user, ownerParking');
+        if (isset($data['role']) && !in_array($data['role'], ['user', 'parking_owner'])) {
+            throw new \InvalidArgumentException('Invalid role. Allowed roles: user, parking_owner');
         }
     }
 }

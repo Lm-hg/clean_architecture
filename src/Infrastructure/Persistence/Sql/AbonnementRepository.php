@@ -16,11 +16,11 @@ use MongoDB\BSON\ObjectId;
 class AbonnementRepository implements AbonnementRepositoryInterface
 {
     private PDO $pdo;
-    private MongoManager $mongo;
+    private ?MongoManager $mongo;
     private string $mongoDb;
     private string $mongoCollection = 'creneaux_abonnements';
 
-    public function __construct(PDO $pdo, MongoManager $mongo, string $mongoDb = 'parking_db')
+    public function __construct(PDO $pdo, ?MongoManager $mongo = null, string $mongoDb = 'parking_db')
     {
         $this->pdo = $pdo;
         $this->mongo = $mongo;
@@ -29,14 +29,15 @@ class AbonnementRepository implements AbonnementRepositoryInterface
 
     public function save(Abonnement $abonnement): ?Abonnement
     {
-        // Prepare identifiers and persist time slots to MongoDB (if any)
+        // Préparer les identifiants et persister les créneaux horaires dans MongoDB (si disponible)
         $timeSlots = $abonnement->getTimeSlots();
         $timeSlotsId = null;
 
-        // Ensure we use a single UUID for both SQL row and Mongo document when creating
+        // S'assurer d'utiliser un seul UUID pour la ligne SQL et le document Mongo lors de la création
         $id = $abonnement->getId() ?? $this->generateUuidV4();
 
-        if (!empty($timeSlots)) {
+        if (!empty($timeSlots) && $this->mongo !== null) {
+            // Utiliser MongoDB uniquement s'il est disponible
             $doc = [
                 'abonnement_id' => $id,
                 'time_slots' => array_map(function ($slot) {
@@ -46,17 +47,22 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 'updated_at' => (new \DateTime())->format('c'),
             ];
 
-            $bulk = new BulkWrite();
-            $insertedId = $bulk->insert($doc);
-            $wc = new WriteConcern(WriteConcern::MAJORITY, 1000);
-            $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, ['writeConcern' => $wc]);
+            try {
+                $bulk = new BulkWrite();
+                $insertedId = $bulk->insert($doc);
+                $wc = new WriteConcern(WriteConcern::MAJORITY, 1000);
+                $result = $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulk, ['writeConcern' => $wc]);
 
-            if ($insertedId !== null) {
-                $timeSlotsId = (string)$insertedId;
+                if ($insertedId !== null) {
+                    $timeSlotsId = (string)$insertedId;
+                }
+            } catch (\Exception $e) {
+                // MongoDB non disponible - continuer sans créneaux horaires
+                error_log("MongoDB unavailable for time slots: " . $e->getMessage());
             }
         }
 
-        // Check if exists
+        // Vérifier si l'entité existe
         $existing = $this->findById($id);
 
         if ($existing === null) {
@@ -79,7 +85,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                 return null;
             }
 
-            // Return saved entity with id
+            // Retourner l'entité sauvegardée avec son ID
             return new Abonnement(
                 $abonnement->getUserId(),
                 $abonnement->getParkingId(),
@@ -94,7 +100,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             );
         }
 
-        // Update path: update abonnements row and replace time slots document if needed
+        // Chemin de mise à jour : mettre à jour la ligne abonnements et remplacer le document créneaux horaires si nécessaire
         $stmt = $this->pdo->prepare('UPDATE abonnements SET user_id = :user_id, parking_id = :parking_id, subscription_type = :type, start_date = :start_date, end_date = :end_date, is_active = :is_active, time_slots_id = :time_slots_id, price = :price, updated_at = :updated_at WHERE id = :id');
         $success = $stmt->execute([
             ':id' => $id,
@@ -113,24 +119,24 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             return null;
         }
 
-        // If there was an existing time_slots_id and we have new slots, remove the old mongo doc
+        // S'il y avait un time_slots_id existant et que nous avons de nouveaux créneaux, supprimer l'ancien document Mongo
         try {
             $oldStmt = $this->pdo->prepare('SELECT time_slots_id FROM abonnements WHERE id = :id');
             $oldStmt->execute([':id' => $id]);
             $oldRow = $oldStmt->fetch(PDO::FETCH_ASSOC);
             $oldTimeSlotsId = $oldRow['time_slots_id'] ?? null;
 
-            if (!empty($oldTimeSlotsId) && !empty($timeSlotsId) && $oldTimeSlotsId !== $timeSlotsId) {
+            if ($this->mongo !== null && !empty($oldTimeSlotsId) && !empty($timeSlotsId) && $oldTimeSlotsId !== $timeSlotsId) {
                 try {
                     $bulkDel = new BulkWrite();
                     $bulkDel->delete(['_id' => new ObjectId($oldTimeSlotsId)], ['limit' => 1]);
                     $this->mongo->executeBulkWrite($this->mongoDb . '.' . $this->mongoCollection, $bulkDel, ['writeConcern' => new WriteConcern(WriteConcern::MAJORITY, 1000)]);
                 } catch (\Throwable $e) {
-                    // Log or ignore deletion failure; do not break update flow
+                    // Enregistrer ou ignorer l'échec de suppression ; ne pas interrompre le flux de mise à jour
                 }
             }
         } catch (\Throwable $e) {
-            // ignore select errors
+            // Ignorer les erreurs de sélection
         }
 
         return $abonnement;
@@ -147,7 +153,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
         }
 
         $timeSlots = [];
-        if (!empty($row['time_slots_id'])) {
+        if ($this->mongo !== null && !empty($row['time_slots_id'])) {
             try {
                 $oid = new ObjectId($row['time_slots_id']);
                 $query = new MongoQuery(['_id' => $oid]);
@@ -159,13 +165,34 @@ class AbonnementRepository implements AbonnementRepositoryInterface
                     }
                 }
             } catch (\Exception $e) {
-                // ignore mongo read errors and continue with empty timeSlots
+                // Ignorer les erreurs de lecture Mongo et continuer avec des créneaux horaires vides
             }
         }
 
         $price = Price::fromFloat((float)$row['price']);
+        
+        // Mapper is_active vers le statut
+        $status = Abonnement::STATUS_ACTIVE;
+        if (isset($row['is_active']) && !$row['is_active']) {
+            // Si is_active = false, c'est soit cancelled soit expired
+            // On vérifie si la date de fin est passée
+            $endDate = new \DateTime($row['end_date']);
+            $now = new \DateTime();
+            if ($endDate < $now) {
+                $status = Abonnement::STATUS_EXPIRED;
+            } else {
+                $status = Abonnement::STATUS_CANCELLED;
+            }
+        } elseif (isset($row['end_date'])) {
+            // Vérifier si l'abonnement est expiré
+            $endDate = new \DateTime($row['end_date']);
+            $now = new \DateTime();
+            if ($endDate < $now) {
+                $status = Abonnement::STATUS_EXPIRED;
+            }
+        }
 
-        return new Abonnement(
+        return Abonnement::reconstitute(
             $row['user_id'],
             $row['parking_id'],
             $row['subscription_type'],
@@ -175,6 +202,8 @@ class AbonnementRepository implements AbonnementRepositoryInterface
             $price,
             new \DateTime($row['created_at']),
             new \DateTime($row['updated_at']),
+            $status,
+            (bool)($row['is_active'] ?? true),
             $row['id']
         );
     }
@@ -225,7 +254,7 @@ class AbonnementRepository implements AbonnementRepositoryInterface
 
     private function mapTypeToDb(string $type): string
     {
-        // Map domain types to the DB enum values used in SQL init script
+        // Mapper les types du domaine vers les valeurs enum de la base de données utilisées dans le script SQL d'initialisation
         return match ($type) {
             Abonnement::TYPE_TOTAL => 'monthly',
             Abonnement::TYPE_WEEKEND => 'weekly',

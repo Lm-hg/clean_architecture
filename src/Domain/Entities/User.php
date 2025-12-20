@@ -24,7 +24,7 @@ class User
         
         // Valider le rôle
         if (!$this->validateRole($role)) {
-            throw new \InvalidArgumentException("Invalid role: " . $role . ". Allowed roles: admin, user, ownerParking");
+            throw new \InvalidArgumentException("Invalid role: " . $role . ". Allowed roles: user, parking_owner, admin");
         }
         
         // Valider le prénom
@@ -61,7 +61,7 @@ class User
 
     public function validateRole(string $role): bool
     {
-        return in_array($role, ['admin', 'user', 'ownerParking']);
+        return in_array($role, ['user', 'parking_owner', 'admin']);
     }
 
     public function validateEmail(string $email): bool

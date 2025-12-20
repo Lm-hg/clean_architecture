@@ -5,45 +5,69 @@ namespace App\Application\UseCases\Reservation;
 
 use App\Domain\Entities\Reservation;
 use App\Domain\Repositories\ReservationRepositoryInterface;
+use App\Domain\Repositories\ParkingRepositoryInterface;
 
 class CreateReservationUseCase
 {
     private ReservationRepositoryInterface $repository;
+    private ParkingRepositoryInterface $parkingRepository;
 
-    public function __construct(ReservationRepositoryInterface $repository)
-    {
+    public function __construct(
+        ReservationRepositoryInterface $repository,
+        ParkingRepositoryInterface $parkingRepository
+    ) {
         $this->repository = $repository;
+        $this->parkingRepository = $parkingRepository;
     }
 
     public function execute(string $userId, string $parkingId, \DateTime $start, \DateTime $end): Reservation
     {
-        // 1. Validation basique des dates (déjà fait dans l'entité, mais bon de vérifier avant appel DB)
+        // 1. Validation basique des dates
         if ($start >= $end) {
             throw new \InvalidArgumentException("La date de début doit être antérieure à la date de fin.");
         }
 
-        // 2. Vérification de la disponibilité (Règle métier)
-        // On cherche s'il existe déjà des réservations sur cet intervalle pour ce parking
+        // 2. Vérifier la durée minimale (15 minutes)
+        $durationMinutes = ($end->getTimestamp() - $start->getTimestamp()) / 60;
+        if ($durationMinutes < 15) {
+            throw new \InvalidArgumentException("La durée minimale de réservation est de 15 minutes.");
+        }
+
+        // 3. Récupérer le parking et vérifier la disponibilité
+        $parking = $this->parkingRepository->findById($parkingId);
+        if ($parking === null) {
+            throw new \DomainException("Parking non trouvé.");
+        }
+
+        // 4. Vérifier qu'il y a des places disponibles
+        if ($parking->getAvailableSpots() <= 0) {
+            throw new \DomainException("Aucune place disponible dans ce parking.");
+        }
+
+        // 5. Vérification des conflits de réservations existantes
         $conflictingReservations = $this->repository->findReservationsInInterval($parkingId, $start, $end);
-        
-        // On filtre éventuellement pour ne garder que celles qui sont confirmées ou en attente (selon la logique métier)
-        // Ici on suppose que le repository retourne déjà ce qui est pertinent (ex: non annulées)
         if (count($conflictingReservations) > 0) {
             throw new \DomainException("Le parking n'est pas disponible sur ce créneau.");
         }
 
-        // 3. Création de l'entité
+        // 6. Création de l'entité
         $reservation = new Reservation(
             $userId,
             $parkingId,
             $start,
             $end,
-            new \DateTime(), // createdAt
-            new \DateTime()  // updatedAt
+            new \DateTime(),
+            new \DateTime()
         );
 
-        // 4. Sauvegarde
-        return $this->repository->save($reservation);
+        // 7. Sauvegarder la réservation
+        $savedReservation = $this->repository->save($reservation);
+
+        // 8. Décrémenter le nombre de places disponibles
+        $parking->decrementAvailableSpots();
+        $this->parkingRepository->save($parking);
+
+        return $savedReservation;
     }
 }
 

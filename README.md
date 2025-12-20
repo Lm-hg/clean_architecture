@@ -1,96 +1,125 @@
-﻿# Clean Architecture Parking System 🚗
+﻿# 🚗 Clean Architecture Parking System
 
-A parking management system built with **Clean Architecture** principles using PHP 8.3, **PostgreSQL** (relational data), **MongoDB** (flexible data), and Docker.
+Système de gestion de parking construit selon les principes de **Clean Architecture** avec PHP 8.3, **PostgreSQL** (données relationnelles), **MongoDB/JSON** (données flexibles), et Docker.
 
-## 📋 Table of Contents
+## 📋 Table des matières
 
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Running the Project](#running-the-project)
-  - [With Docker (Recommended)](#with-docker-recommended)
-  - [Without Docker](#without-docker)
-- [Database](#database)
-- [API Endpoints](#api-endpoints)
-- [Testing](#testing)
-- [Project Structure](#project-structure)
+- [Architecture](#-architecture)
+- [Entités du domaine](#-entités-du-domaine)
+- [Prérequis](#-prérequis)
+- [Installation](#-installation)
+- [Lancer le projet](#-lancer-le-projet)
+- [Base de données](#-base-de-données)
+- [API Endpoints](#-api-endpoints)
+- [Tests](#-tests)
+- [Structure du projet](#-structure-du-projet)
+- [Fonctionnalités](#-fonctionnalités)
 
 ---
 
 ## 🏗️ Architecture
 
-This project follows **Clean Architecture** principles with clear separation of concerns:
+Ce projet suit les principes de **Clean Architecture** avec une séparation claire des responsabilités :
 
-- **Domain Layer**: Business entities and repository interfaces (no dependencies)
-- **Application Layer**: Use cases and DTOs (depends only on Domain)
-- **Infrastructure Layer**: Database implementations, external services (depends on Domain)
-- **Presentation Layer**: HTTP controllers, routing (depends on Application)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRESENTER (Http)                          │
+│  Controllers/Api    Controllers/Web    Frontend (React)      │
+├─────────────────────────────────────────────────────────────┤
+│                   APPLICATION (UseCases)                     │
+│  CreateReservation  EnterParking  CalculateRevenue  etc.     │
+├─────────────────────────────────────────────────────────────┤
+│                      DOMAIN (Core)                           │
+│  Entities  ValueObjects  Repositories(interfaces)  Services  │
+├─────────────────────────────────────────────────────────────┤
+│                  INFRASTRUCTURE                              │
+│  Persistence/Sql  NoSql  External Services                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Hybrid Database Architecture
+### Couches
 
-This project uses a **hybrid database approach**:
+| Couche | Description | Dépendances |
+|--------|-------------|-------------|
+| **Domain** | Entités métier, Value Objects, interfaces des repositories | Aucune |
+| **Application** | Use Cases, DTOs, logique applicative | Domain uniquement |
+| **Infrastructure** | Implémentations des repositories (SQL, NoSQL) | Domain |
+| **Presenter** | Controllers HTTP (API/Web), Frontend React | Application |
 
-**PostgreSQL (Relational Data)**:
-- Users, parkings, reservations, payments
-- Parking sessions (stationnements)
-- Subscriptions (abonnements)
-- Structured data with relationships
+### Architecture de base de données hybride
 
-**MongoDB (Flexible Data)**:
-- Pricing grids (custom rates per parking)
-- Subscription time slots (flexible schedules)
-- Invoices (variable structure)
-- Parking events logs
-- System logs
+**PostgreSQL (Données relationnelles)** :
+- Users, Parkings, Réservations
+- Stationnements (sessions de parking)
+- Abonnements
+
+**MongoDB/JSON (Données flexibles)** :
+- Grilles tarifaires personnalisées
+- Créneaux horaires d'abonnement
+- Factures
+- Logs système
 
 ---
 
-## ✅ Prerequisites
+## 📦 Entités du domaine
 
-### With Docker:
-- Docker Desktop (or Docker Engine + Docker Compose)
+| Entité | Description |
+|--------|-------------|
+| `User` | Utilisateurs (clients, admins) |
+| `ParkingOwner` | Propriétaires de parkings |
+| `Parking` | Places de parking avec horaires, tarifs, capacité |
+| `Reservation` | Réservations avec statut (confirmed, cancelled, completed) |
+| `Stationnement` | Sessions de parking effectives (entrée/sortie) |
+| `Abonnement` | Abonnements avec créneaux horaires |
+| `SubscriptionType` | Types d'abonnements disponibles |
+
+---
+
+## ✅ Prérequis
+
+### Avec Docker :
+- Docker Desktop (ou Docker Engine + Docker Compose)
 - Git
 
-### Without Docker:
-- PHP 8.3 or higher
-- PostgreSQL 14 or higher
-- MongoDB 7 or higher
+### Sans Docker :
+- PHP 8.2 ou supérieur
+- PostgreSQL 14 ou supérieur
+- MongoDB 7 ou supérieur (optionnel, fallback JSON disponible)
 - Composer
-- Apache or Nginx (optional, can use PHP built-in server)
+- Node.js 18+ (pour le frontend React)
 
 ---
 
-## 📦 Installation
+## 📥 Installation
 
-### 1. Clone the repository
+### 1. Cloner le repository
 
 ```bash
 git clone <repository-url>
 cd clean_architecture
 ```
 
-### 2. Configure environment variables
+### 2. Configurer les variables d'environnement
 
 ```bash
 cp .env.exemple .env
 ```
 
-Edit `.env` with your database credentials:
+Éditer `.env` avec vos identifiants :
 
 ```env
-# PostgreSQL Database Configuration
+# PostgreSQL
 POSTGRES_USER=parking_user
 POSTGRES_PASSWORD=your_secure_password
 POSTGRES_DB=parking_db
 
-# Application Database Connection
-DB_HOST=db                    # Use 'localhost' if running without Docker
+DB_HOST=db                    # 'localhost' sans Docker
 DB_NAME=parking_db
 DB_USER=parking_user
 DB_PASSWORD=your_secure_password
 DB_PORT=5432
 
-# MongoDB Configuration
+# MongoDB (optionnel)
 MONGO_USER=parking_mongo
 MONGO_PASSWORD=your_mongo_password
 MONGO_DB=parking_db
@@ -98,422 +127,366 @@ MONGO_DB=parking_db
 
 ---
 
-## 🚀 Running the Project
+## 🚀 Lancer le projet
 
-### With Docker (Recommended)
-
-#### First Time Setup
+### Avec Docker (Recommandé)
 
 ```bash
-# Build and start containers
+# Build et démarrer
 docker compose up -d --build
 
-# View logs
+# Voir les logs
 docker compose logs -f
 ```
 
-The application will be available at:
+**URLs disponibles :**
 - **API**: http://localhost
 - **PostgreSQL**: localhost:5432
 - **MongoDB**: localhost:27017
 
-#### Subsequent Runs
+### Sans Docker
 
 ```bash
-# Start containers
-docker compose up -d
-
-# Stop containers
-docker compose down
-
-# Stop and remove volumes (fresh database)
-docker compose down -v
-```
-
-#### Useful Docker Commands
-
-```bash
-# View logs
-docker compose logs -f web
-docker compose logs -f db
-
-# Access web container shell
-docker exec -it parking_app_web bash
-
-# Access PostgreSQL shell
-docker exec -it parking_app_db psql -U parking_user -d parking_db
-
-# Access MongoDB shell
-docker exec -it parking_app_mongodb mongosh -u parking_mongo -p your_mongo_password parking_db
-
-# Restart containers
-docker compose restart
-
-# Rebuild after code changes
-docker compose up -d --build
-```
-
----
-
-### Without Docker
-
-#### 1. Install Dependencies
-
-```bash
+# Installer les dépendances PHP
 composer install
-```
 
-#### 2. Setup PostgreSQL Database
-
-Create a PostgreSQL database and user:
-
-```sql
-CREATE DATABASE parking_db;
-CREATE USER parking_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE parking_db TO parking_user;
-```
-
-#### 3. Initialize Database Schema
-
-```bash
+# Initialiser la base de données
 psql -U parking_user -d parking_db -f src/docker/postgres/init.sql
-```
 
-#### 4. Configure Environment
-
-Update `.env` file:
-
-```env
-DB_HOST=localhost
-DB_NAME=parking_db
-DB_USER=parking_user
-DB_PASSWORD=your_secure_password
-```
-
-#### 5. Start PHP Development Server
-
-```bash
+# Démarrer le serveur
 php -S localhost:8000 -t public
 ```
 
-The application will be available at: http://localhost:8000
+### Frontend React
+
+```bash
+cd src/Presenter/Frontend
+npm install
+npm run dev
+```
+
+**URL Frontend**: http://localhost:3000
 
 ---
 
-## 🗄️ Database
+## 🗄️ Base de données
 
-### PostgreSQL Schema (Relational Data)
+### Tables PostgreSQL
 
-The PostgreSQL database includes the following tables:
+| Table | Description |
+|-------|-------------|
+| `users` | Comptes utilisateurs avec rôles |
+| `parking_owners` | Propriétaires de parkings |
+| `parkings` | Parkings avec GPS, horaires, tarifs |
+| `reservations` | Réservations avec statut et paiement |
+| `stationnements` | Sessions de stationnement |
+| `abonnements` | Abonnements actifs |
+| `subscription_types` | Types d'abonnements |
 
-- **users**: User accounts (owners, customers, admins) with company info
-- **parkings**: Parking spots/locations with GPS and opening hours
-- **reservations**: Booking records with payment status
-- **payments**: Payment transactions
-- **stationnements**: Actual parking sessions (entry/exit tracking)
-- **abonnements**: Subscriptions with custom time slots
+### Collections MongoDB/JSON
 
-### MongoDB Collections (Flexible Data)
+| Collection | Description |
+|------------|-------------|
+| `pricing_grids` | Tarifs personnalisés (15min, 30min, 1h, jour, nuit) |
+| `subscription_time_slots` | Créneaux horaires d'abonnement |
+| `invoices` | Factures détaillées |
+| `parking_events` | Logs d'entrées/sorties |
+| `system_logs` | Logs application |
 
-The MongoDB database includes the following collections:
+### Comptes de test (mot de passe: `password123`)
 
-- **pricing_grids**: Custom pricing rates per parking (15min, 30min, 1h, 2h, day, night, special rates)
-- **subscription_time_slots**: Flexible time schedules for subscriptions
-- **invoices**: Detailed invoice metadata (items, taxes, totals)
-- **parking_events**: Entry/exit logs and events
-- **system_logs**: Application logs and errors
-
-### Seed Data
-
-The database is automatically seeded with test data on first initialization:
-
-#### Test Accounts (Password: `admin123`)
-
-| Email | Role | Description |
+| Email | Rôle | Description |
 |-------|------|-------------|
-| `admin@parking.com` | Admin | System administrator |
-| `owner@parking.com` | Owner | Parking spot owner |
-| `customer@parking.com` | Customer | Regular customer |
-
-#### Test Parkings
-
-- **Central Parking Spot**: Paris city center (€5.50/hour)
-- **Airport Parking**: Near CDG Airport (€3.00/hour)
-
-### Database Management
-
-#### Reset Database (Docker)
-
-```bash
-# Stop containers and remove volumes
-docker compose down -v
-
-# Restart (will recreate database with seed data)
-docker compose up -d
-```
-
-#### Reset Database (Without Docker)
-
-```bash
-# Drop and recreate database
-psql -U postgres -c "DROP DATABASE parking_db;"
-psql -U postgres -c "CREATE DATABASE parking_db;"
-psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE parking_db TO parking_user;"
-
-# Re-run initialization script
-psql -U parking_user -d parking_db -f src/docker/postgres/init.sql
-```
-
-#### Access Database Directly
-
-**With Docker:**
-```bash
-# PostgreSQL
-docker exec -it parking_app_db psql -U parking_user -d parking_db
-
-# MongoDB
-docker exec -it parking_app_mongodb mongosh -u parking_mongo -p your_mongo_password parking_db
-```
-
-**Without Docker:**
-```bash
-# PostgreSQL
-psql -U parking_user -d parking_db
-
-# MongoDB
-mongosh -u parking_mongo -p your_mongo_password parking_db
-```
+| `lucas.martin@gmail.com` | User | Client standard |
+| `sophie.dubois@gmail.com` | Owner | Propriétaire de parking |
 
 ---
 
 ## 🌐 API Endpoints
 
-### Health Check
+### Authentification (JWT)
 
 ```bash
-curl http://localhost/health
-```
-
-**Response:**
-```json
+# Inscription
+POST /api/auth/register
 {
-  "status": "ok",
-  "message": "Clean Architecture Parking API is running",
-  "timestamp": "2025-11-25T10:00:00+00:00",
-  "environment": {
-    "php_version": "8.3.x",
-    "db_host": "db"
-  }
+  "first_name": "Lucas",
+  "last_name": "Martin",
+  "email": "lucas@example.com",
+  "password": "password123"
 }
-```
 
-### Database Connection Test
-
-```bash
-curl http://localhost/db-test
-```
-
-**Response:**
-```json
+# Connexion
+POST /api/auth/login
 {
-  "status": "success",
-  "message": "Database connection successful",
-  "database": {
-    "version": "PostgreSQL 14.x...",
-    "host": "db",
-    "name": "parking_db",
-    "tables_count": "6"
-  }
+  "email": "lucas@example.com",
+  "password": "password123"
 }
+# Retourne: { "token": "JWT_TOKEN", "user": {...} }
 ```
 
-### MongoDB Connection Test
+### Utilisateurs
 
-```bash
-curl http://localhost/mongo-test
-```
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/users` | Liste des utilisateurs |
+| GET | `/api/users/{id}` | Détail utilisateur |
+| PUT | `/api/users/{id}` | Modifier utilisateur |
+| DELETE | `/api/users/{id}` | Supprimer utilisateur |
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "MongoDB connection successful",
-  "database": {
-    "host": "mongodb",
-    "name": "parking_db",
-    "collections_count": "5"
-  }
-}
-```
+### Parkings
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/parkings/search` | Rechercher parkings (lat, lng, radius) |
+| POST | `/api/owner/parkings` | Créer un parking (owner) |
+| PUT | `/api/owner/parkings/{id}/hours` | Modifier horaires |
+| PUT | `/api/owner/parkings/{id}/tarifs` | Modifier tarifs |
+| GET | `/api/owner/parkings/{id}/revenue` | Chiffre d'affaires mensuel |
+
+### Réservations
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/reservations` | Créer réservation (min 15 min) |
+| GET | `/api/reservations/{id}` | Détail réservation |
+| GET | `/api/reservations?user_id={id}` | Mes réservations |
+| DELETE | `/api/reservations/{id}` | Annuler réservation |
+
+### Stationnements
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/stationnements/enter` | Entrer dans le parking |
+| POST | `/api/stationnements/exit` | Sortir (calcul tarif) |
+| GET | `/api/stationnements/{id}` | Détail session |
+| GET | `/api/stationnements?user_id={id}` | Mes sessions |
+
+### Abonnements
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/subscription-types` | Types disponibles |
+| POST | `/api/subscriptions` | Souscrire |
+| GET | `/api/subscriptions?user_id={id}` | Mes abonnements |
+| DELETE | `/api/subscriptions/{id}` | Résilier |
 
 ---
 
-## 🧪 Testing
+## 🧪 Tests
 
-### Run Tests
+### Exécuter tous les tests
 
 ```bash
-# With Docker
+# Avec Docker
 docker exec -it parking_app_web ./vendor/bin/phpunit
 
-# Without Docker
+# Sans Docker
 ./vendor/bin/phpunit
 ```
 
-### Run Tests with Coverage
+### Tests par catégorie
 
 ```bash
-# With Docker
-docker exec -it parking_app_web ./vendor/bin/phpunit --coverage-html coverage
+# Tests unitaires (Domain + Application)
+./vendor/bin/phpunit tests/unit --testdox
 
-# Without Docker
-./vendor/bin/phpunit --coverage-html coverage
+# Tests fonctionnels (API)
+./vendor/bin/phpunit tests/functional --testdox
+
+# Tests d'intégration (avec DB)
+./vendor/bin/phpunit tests/integration --testdox
 ```
+
+### Couverture de tests
+
+| Catégorie | Tests | Description |
+|-----------|-------|-------------|
+| **Unit** | 60 | Domain (Entities, ValueObjects), Application (UseCases) |
+| **Functional** | 27 | API endpoints (User, Reservation, Stationnement) |
+| **Integration** | 18 | Repositories avec PostgreSQL |
+
+**Couverture Domain > 60%** ✅
 
 ---
 
-## 📁 Project Structure
+## 📁 Structure du projet
 
 ```
-/
-├── bin/                          # Executable scripts
-├── config/                       # Configuration files
-│   ├── database.php              # PostgreSQL PDO configuration
-│   └── mongodb.php               # MongoDB client configuration
-├── public/                       # Web root (Front Controller)
-│   └── index.php                 # Application entry point
-├── src/                          # Application source code
-│   ├── Application/              # Use Cases and DTOs
-│   │   ├── dtos/
-│   │   ├── services/
-│   │   └── usecases/
-│   ├── Domain/                   # Business entities and rules
-│   │   ├── Entities/
-│   │   └── Repositories/         # Repository interfaces
-│   ├── Infrastructure/           # Technical implementations
-│   │   ├── persistences/         # Database repositories
-│   │   │   ├── PostgreSQL/       # SQL repositories
-│   │   │   └── MongoDB/          # NoSQL repositories
-│   │   └── services/             # External services
-│   ├── Presentation/             # HTTP layer
-│   │   └── router.php
-│   └── docker/                   # Docker configuration
+clean_architecture/
+├── config/                     # Configuration
+│   ├── database.php           # PostgreSQL PDO
+│   ├── mongodb.php            # MongoDB client
+│   └── json_storage.php       # Fallback JSON
+├── public/
+│   └── index.php              # Point d'entrée API (routage)
+├── src/
+│   ├── Domain/                # COUCHE DOMAINE
+│   │   ├── Entities/          # Parking, User, Reservation, etc.
+│   │   ├── ValueObjects/      # Price, OpeningHours, TimeSlot
+│   │   ├── Repositories/      # Interfaces (contrats)
+│   │   ├── Services/          # Services métier (PricingService)
+│   │   └── Exceptions/        # Exceptions métier
+│   ├── Application/           # COUCHE APPLICATION
+│   │   ├── UseCases/          # Cas d'utilisation
+│   │   │   ├── Auth/          # LoginUserUseCase
+│   │   │   ├── User/          # CRUD User
+│   │   │   ├── Parking/       # SearchParkingsUseCase
+│   │   │   ├── ParkingOwner/  # CreateParking, CalculateRevenue...
+│   │   │   ├── Reservation/   # Create, Cancel, List...
+│   │   │   ├── Stationnement/ # Enter, Exit parking
+│   │   │   └── Abonnement/    # Gestion abonnements
+│   │   └── dtos/              # Data Transfer Objects
+│   ├── Infrastructure/        # COUCHE INFRASTRUCTURE
+│   │   ├── Persistence/
+│   │   │   └── Sql/           # Repositories PostgreSQL
+│   │   ├── NoSql/             # Repositories MongoDB/JSON
+│   │   └── Services/          # Services externes (JWT, Pricing)
+│   ├── Presenter/             # COUCHE PRÉSENTATION
+│   │   ├── Http/
+│   │   │   └── Controllers/
+│   │   │       ├── Api/       # REST API (JSON)
+│   │   │       └── Web/       # Pages HTML (vide - SPA React)
+│   │   └── Frontend/          # Application React/TypeScript
+│   └── docker/                # Configuration Docker
 │       ├── php/
-│       │   └── Dockerfile
 │       ├── postgres/
-│       │   └── init.sql          # PostgreSQL schema
 │       └── mongodb/
-│           └── init-mongo.js     # MongoDB collections
-├── tests/                        # Test files
-├── .env                          # Environment variables (not in git)
-├── .env.exemple                  # Environment template
-├── composer.json                 # PHP dependencies
-└── docker-compose.yml            # Docker services configuration
+├── tests/
+│   ├── unit/                  # Tests unitaires
+│   │   ├── Domain/            # Entités, ValueObjects
+│   │   ├── Application/       # UseCases
+│   │   └── Presenter/         # Controllers
+│   ├── functional/            # Tests fonctionnels API
+│   │   ├── User/
+│   │   ├── Reservation/
+│   │   └── Stationnement/
+│   └── integration/           # Tests avec base de données
+├── data/json/                 # Stockage JSON (fallback MongoDB)
+├── docs/                      # Documentation
+├── scripts/                   # Scripts utilitaires
+├── composer.json
+├── phpunit.xml
+└── docker-compose.yml
+```
+
+### Controllers/Api vs Controllers/Web
+
+| Dossier | Utilisation | Contenu |
+|---------|-------------|---------|
+| `Controllers/Api/` | API REST JSON | Tous les controllers actuels |
+| `Controllers/Web/` | Pages HTML rendues côté serveur | **Vide** - le projet utilise une SPA React |
+
+> **Note** : Le dossier `Web/` est prévu pour des pages HTML traditionnelles (comme Blade/Twig), mais ce projet utilise un **frontend React séparé** qui consomme l'API REST. C'est pourquoi ce dossier est vide.
+
+---
+
+## ⚡ Fonctionnalités
+
+### Côté Utilisateur
+- Inscription / Connexion (JWT)
+- Recherche de parkings par géolocalisation
+- Réservation de place (minimum 15 minutes)
+- Entrée/Sortie du parking
+- Consultation de l'historique
+- Gestion des abonnements
+
+### Côté Propriétaire (Owner)
+- Création de parking
+- Gestion des horaires d'ouverture
+- Configuration des tarifs
+- Consultation des réservations
+- Calcul du chiffre d'affaires mensuel
+- Gestion des types d'abonnements
+
+### Règles métier
+- **Facturation par tranche de 15 minutes**
+- **Mise à jour des places disponibles** à chaque réservation confirmée
+- **Pénalité de 20€** + facturation du temps supplémentaire en cas de dépassement
+- Validation des créneaux pour éviter les conflits
+
+---
+
+## 🔐 Authentification JWT
+
+Le projet utilise `firebase/php-jwt` pour l'authentification :
+
+```php
+// Génération du token
+$token = JWT::encode([
+    'user_id' => $user->getId(),
+    'email' => $user->getEmail(),
+    'role' => $user->getRole(),
+    'exp' => time() + 3600
+], $secretKey, 'HS256');
+```
+
+Incluez le token dans les headers :
+```bash
+Authorization: Bearer <token>
 ```
 
 ---
 
-## 🔧 Development
+## 🛠️ Développement
 
-### PSR-4 Autoloading
+### Standards
 
-The project uses PSR-4 autoloading with the following namespaces:
-
-- `App\Domain\` → `src/Domain/`
-- `App\Application\` → `src/Application/`
-- `App\Infrastructure\` → `src/Infrastructure/`
-- `App\Presentation\` → `src/Presentation/`
-
-### Code Standards
-
-- PHP 8.3+ with strict types
-- Clean Architecture principles
-- Hybrid database architecture (PostgreSQL + MongoDB)
-- Repository pattern for data access
-- Dependency injection
+- PHP 8.2+ avec types stricts
+- PSR-4 Autoloading
+- Clean Architecture
 - SOLID principles
+- Repository Pattern
+
+### Namespaces PSR-4
+
+```
+App\Domain\        → src/Domain/
+App\Application\   → src/Application/
+App\Infrastructure\→ src/Infrastructure/
+App\Presenter\     → src/Presenter/
+```
 
 ---
 
-## 📝 License
+## 📝 Licence
 
 MIT
 
 ---
 
-## 👥 Author
+## 👥 Auteur
 
-HETIC Student Project
+Projet étudiant HETIC - Clean Architecture PHP
 
 ---
 
-## 🆘 Troubleshooting
+## 🆘 Dépannage
 
-### Docker Issues
+### Erreur de connexion PostgreSQL
 
-**Port already in use:**
 ```bash
-# Change ports in docker-compose.yml
-ports:
-  - "8080:80"  # Instead of "80:80"
-```
-
-**Database connection fails:**
-```bash
-# Check if database is ready
+# Vérifier les logs
 docker compose logs db
 
-# Restart database
+# Redémarrer
 docker compose restart db
 ```
 
-**Permission issues:**
+### MongoDB non disponible
+
+Le projet utilise automatiquement un **fallback JSON** si MongoDB n'est pas installé. Les données sont stockées dans `data/json/`.
+
+### Tests échouent
+
 ```bash
-# Fix permissions
-sudo chown -R $USER:$USER .
-```
+# Vérifier la connexion DB dans les tests
+# Les tests d'intégration nécessitent PostgreSQL
 
-### Without Docker Issues
-
-**Composer not found:**
-```bash
-# Install Composer
-curl -sS https://getcomposer.org/installer | php
-sudo mv composer.phar /usr/local/bin/composer
-```
-
-**PostgreSQL connection refused:**
-```bash
-# Check if PostgreSQL is running
-sudo systemctl status postgresql
-
-# Start PostgreSQL
-sudo systemctl start postgresql
-```
-
-**PHP extensions missing:**
-```bash
-# Install required extensions
-sudo apt-get install php8.3-pgsql php8.3-zip php8.3-gd php8.3-mongodb
-```
-
-**MongoDB connection issues:**
-```bash
-# Check MongoDB logs
-docker compose logs mongodb
-
-# Restart MongoDB
-docker compose restart mongodb
+# Exécuter uniquement les tests unitaires
+./vendor/bin/phpunit tests/unit
 ```
 
 ---
 
-## 🚀 Next Steps
 
-1. Implement your first use case in `src/Application/usecases/`
-2. Create repository implementations in `src/Infrastructure/persistences/`
-3. Add controllers in `src/Presentation/`
-4. Write tests in `tests/`
-5. Expand the API with more endpoints
-
-Happy coding! 🎉

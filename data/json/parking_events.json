@@ -1,0 +1,28 @@
+[
+  {
+    "event_id": "evt_001",
+    "timestamp": "2025-12-04T10:00:00Z",
+    "type": "entry",
+    "parking_id": "parking_001",
+    "user_id": "user_001",
+    "session_id": "session_001",
+    "metadata": {
+      "plate_number": "AB-123-CD",
+      "barrier_id": "barrier_1"
+    }
+  },
+  {
+    "event_id": "evt_002",
+    "timestamp": "2025-12-04T12:30:00Z",
+    "type": "exit",
+    "parking_id": "parking_001",
+    "user_id": "user_001",
+    "session_id": "session_001",
+    "metadata": {
+      "plate_number": "AB-123-CD",
+      "barrier_id": "barrier_1",
+      "duration_minutes": 150,
+      "cost": 3.20
+    }
+  }
+]

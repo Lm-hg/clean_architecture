@@ -23,7 +23,23 @@ CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded'
 CREATE TYPE subscription_type AS ENUM ('monthly', 'weekly', 'daily', 'custom');
 
 -- Parking session status
-CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled');
+-- Create enum type if it doesn't exist, then add 'penalized' if missing
+DO $$ 
+BEGIN
+    -- Create the enum type if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_status') THEN
+        CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled', 'penalized');
+    ELSE
+        -- Type exists, add 'penalized' if it's not already there
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum 
+            WHERE enumlabel = 'penalized' 
+            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'session_status')
+        ) THEN
+            ALTER TYPE session_status ADD VALUE 'penalized';
+        END IF;
+    END IF;
+END $$;
 
 -- ============================================
 -- TABLES
@@ -33,7 +49,7 @@ CREATE TYPE session_status AS ENUM ('active', 'completed', 'cancelled');
 -- Using VARCHAR(36) for UUID string format
 CREATE TABLE users (
     id VARCHAR(36) PRIMARY KEY,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'ownerParking')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'parking_owner')),
     first_name VARCHAR(255) NOT NULL CHECK (char_length(first_name) >= 2),
     name VARCHAR(255) NOT NULL CHECK (char_length(name) >= 2),
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -141,6 +157,9 @@ CREATE TABLE stationnements (
     status session_status NOT NULL DEFAULT 'active',
     payment_status payment_status NOT NULL DEFAULT 'pending',
     vehicle_plate VARCHAR(20),
+    -- References for reservation-based and subscription-based parking
+    reservation_id UUID NULL,
+    abonnement_id UUID NULL,
     -- Reference to MongoDB event log
     event_log_id VARCHAR(24),  -- MongoDB ObjectId
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -151,16 +170,41 @@ CREATE TABLE stationnements (
         REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_stationnement_parking FOREIGN KEY (parking_id) 
         REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_stationnement_reservation FOREIGN KEY (reservation_id) 
+        REFERENCES reservations(id) ON DELETE SET NULL,
     CONSTRAINT chk_exit_after_entry CHECK (exit_time IS NULL OR exit_time > entry_time),
     CONSTRAINT chk_calculated_price_positive CHECK (calculated_price IS NULL OR calculated_price >= 0),
     CONSTRAINT chk_penalties_positive CHECK (penalties >= 0)
 );
 
--- Abonnements table (subscriptions)
+-- Subscription Types table (types d'abonnements disponibles pour chaque parking)
+CREATE TABLE subscription_types (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parking_id UUID NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    benefits TEXT,  -- JSON array stocké comme texte: ["Avantage 1", "Avantage 2"]
+    price DECIMAL(10, 2) NOT NULL,
+    duration_days INTEGER NOT NULL DEFAULT 30,
+    -- Reference to MongoDB time slots document
+    time_slots_id VARCHAR(24),  -- MongoDB ObjectId
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT fk_subscription_type_parking FOREIGN KEY (parking_id) 
+        REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT chk_subscription_type_price_positive CHECK (price > 0),
+    CONSTRAINT chk_subscription_type_duration_positive CHECK (duration_days > 0)
+);
+
+-- Abonnements table (subscriptions actifs des utilisateurs)
 CREATE TABLE abonnements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id VARCHAR(36) NOT NULL,
     parking_id UUID NOT NULL,
+    subscription_type_id UUID,  -- Reference to subscription_types
     subscription_type subscription_type NOT NULL DEFAULT 'monthly',
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
@@ -177,6 +221,8 @@ CREATE TABLE abonnements (
         REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_abonnement_parking FOREIGN KEY (parking_id) 
         REFERENCES parkings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_abonnement_subscription_type FOREIGN KEY (subscription_type_id) 
+        REFERENCES subscription_types(id) ON DELETE SET NULL,
     CONSTRAINT chk_end_after_start_date CHECK (end_date > start_date),
     CONSTRAINT chk_subscription_price_positive CHECK (price > 0)
 );
@@ -278,7 +324,7 @@ INSERT INTO users (id, email, password, first_name, name, role) VALUES
     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'John',
     'Doe',
-    'ownerParking'
+    'parking_owner'
 );
 
 -- Insert a test customer
